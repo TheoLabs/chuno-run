@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>알림 기능 이슈 목록</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2.5rem 1.5rem; line-height: 1.65;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+    background: #f6f7f9; color: #1a1a1a;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  header { border-bottom: 2px solid #6366f1; padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.7rem; margin: 0 0 .4rem; }
+  .meta { color: #6b7280; font-size: .82rem; display: flex; flex-wrap: wrap; gap: .4rem 1rem; }
+  .meta span { white-space: nowrap; }
+  .meta a { color: #4f46e5; }
+  section { margin: 2.2rem 0; }
+  h2 { font-size: 1.15rem; margin: 0 0 .8rem; display: flex; align-items: center; gap: .5rem; }
+  h2::before { content: ""; width: 4px; height: 1.05em; background: #6366f1; border-radius: 2px; display: inline-block; }
+  h3.epic-title { font-size: 1rem; margin: 0 0 .5rem; color: #3730a3; }
+  p { margin: .3rem 0; }
+  ul { margin: .3rem 0; padding-left: 1.3rem; }
+  li { margin: .25rem 0; }
+  code { background: rgba(0,0,0,.06); padding: .1rem .35rem; border-radius: 4px; font-size: .85em; }
+
+  /* TOC */
+  .toc { background: #fff; border: 1px solid rgba(0,0,0,.08); border-radius: 10px; padding: 1rem 1.3rem; }
+  .toc ol { margin: .2rem 0; padding-left: 1.2rem; }
+  .toc a { color: #4338ca; text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .toc .sub { list-style: none; padding-left: 0; margin: .3rem 0 .8rem; display: flex; flex-wrap: wrap; gap: .4rem; }
+  .toc .sub li { margin: 0; }
+  .toc .sub a { display: inline-block; font-size: .78rem; background: rgba(99,102,241,.08); padding: .15rem .55rem; border-radius: 999px; }
+
+  .epic-block { margin-bottom: 2.2rem; }
+  .epic-desc { color: #6b7280; font-size: .85rem; margin: 0 0 1rem; }
+
+  .grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+
+  .card {
+    background: #fff; border: 1px solid rgba(0,0,0,.08); border-radius: 10px;
+    padding: 1rem 1.2rem; scroll-margin-top: 1rem;
+  }
+  .card-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem; margin-bottom: .5rem; }
+  .card-head .id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; color: #9ca3af; }
+  .card-head h4 { margin: 0; font-size: 1.02rem; }
+
+  .badges { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .6rem; }
+  .badge { font-size: .68rem; font-weight: 700; padding: .12rem .55rem; border-radius: 999px; white-space: nowrap; }
+  .type-feature { background: #dbeafe; color: #1e40af; }
+  .type-bug { background: #fee2e2; color: #b91c1c; }
+  .type-chore { background: #e5e7eb; color: #374151; }
+  .type-docs { background: #ede9fe; color: #5b21b6; }
+  .p-P0 { background: #fee2e2; color: #b91c1c; }
+  .p-P1 { background: #fef3c7; color: #92400e; }
+  .p-P2 { background: #dbeafe; color: #1e40af; }
+  .size { background: rgba(0,0,0,.06); color: #374151; }
+  .epic-pill { background: rgba(99,102,241,.12); color: #4338ca; }
+  .badge-deferred { background: #fef3c7; color: #92400e; }
+  .backlog-note { color: #92400e; font-size: .82rem; margin: 0 0 1rem; }
+
+  .field { font-size: .85rem; margin: .4rem 0; }
+  .field .label { font-weight: 600; color: #4b5563; margin-right: .3rem; }
+  .deps a, .links a { color: #4338ca; text-decoration: none; margin-right: .5rem; }
+  .deps a:hover, .links a:hover { text-decoration: underline; }
+  .none { color: #9ca3af; }
+
+  .ac { margin: .4rem 0 0; padding-left: 1.1rem; }
+  .ac li { margin: .2rem 0; }
+  .ac li::marker { content: "\2610  "; }
+
+  .links { margin-top: .6rem; padding-top: .5rem; border-top: 1px dashed rgba(0,0,0,.1); font-size: .8rem; }
+
+  .oos-card { background: #fff; border: 1px solid rgba(0,0,0,.08); border-radius: 10px; padding: 1rem 1.2rem; }
+  .oos-card ul { margin: 0; }
+
+  .order-card { background: #fff; border: 1px solid rgba(0,0,0,.08); border-radius: 10px; padding: 1rem 1.2rem; }
+  .phase { margin-bottom: .8rem; }
+  .phase h4 { margin: 0 0 .3rem; font-size: .88rem; color: #4338ca; }
+  .phase .chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .phase .chips a { font-size: .78rem; background: rgba(99,102,241,.1); color: #3730a3; text-decoration: none; padding: .18rem .6rem; border-radius: 999px; }
+  .phase .chips a:hover { background: rgba(99,102,241,.2); }
+
+  .assume { color: #92400e; font-size: .8rem; }
+
+  @media (prefers-color-scheme: dark) {
+    body { background: #0f1115; color: #e5e7eb; }
+    .meta { color: #9ca3af; }
+    .meta a { color: #a5b4fc; }
+    .toc, .card, .oos-card, .order-card { background: #181b21; border-color: rgba(255,255,255,.08); }
+    code { background: rgba(255,255,255,.1); }
+    .toc a { color: #a5b4fc; }
+    .toc .sub a { background: rgba(99,102,241,.18); }
+    h3.epic-title { color: #a5b4fc; }
+    .epic-desc { color: #9ca3af; }
+    .card-head .id { color: #6b7280; }
+    .field .label { color: #9ca3af; }
+    .deps a, .links a { color: #a5b4fc; }
+    .size { background: rgba(255,255,255,.1); color: #d1d5db; }
+    .epic-pill { background: rgba(99,102,241,.22); color: #c7d2fe; }
+    .badge-deferred { background: #78350f; color: #fde68a; }
+    .backlog-note { color: #fbbf24; }
+    .type-feature { background: #1e3a8a; color: #bfdbfe; }
+    .type-bug { background: #7f1d1d; color: #fecaca; }
+    .type-chore { background: #374151; color: #e5e7eb; }
+    .type-docs { background: #4c1d95; color: #ddd6fe; }
+    .p-P0 { background: #7f1d1d; color: #fecaca; }
+    .p-P1 { background: #78350f; color: #fde68a; }
+    .p-P2 { background: #1e3a8a; color: #bfdbfe; }
+    .links { border-top-color: rgba(255,255,255,.12); }
+    .phase h4 { color: #a5b4fc; }
+    .phase .chips a { background: rgba(99,102,241,.18); color: #c7d2fe; }
+    .phase .chips a:hover { background: rgba(99,102,241,.3); }
+    .assume { color: #fbbf24; }
+    .none { color: #6b7280; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>알림 기능 이슈 목록</h1>
+    <div class="meta">
+      <span>slug: <code>notification-feature</code></span>
+      <span>작성일: 2026-07-07</span>
+      <span>기획서: <a href="../plans/notification-feature.html">../plans/notification-feature.html</a></span>
+      <span>이슈 수: 10 (+ 차기 마일스톤 백로그 4)</span>
+      <span>에픽: 3 (+ 백로그 1)</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>목차</h2>
+    <div class="toc">
+      <ol>
+        <li><a href="#epic-in-app">인앱 알림센터</a> (NOTI-1 ~ NOTI-5)
+          <ul class="sub">
+            <li><a href="#NOTI-1">NOTI-1</a></li>
+            <li><a href="#NOTI-2">NOTI-2</a></li>
+            <li><a href="#NOTI-3">NOTI-3</a></li>
+            <li><a href="#NOTI-4">NOTI-4</a></li>
+            <li><a href="#NOTI-5">NOTI-5</a></li>
+          </ul>
+        </li>
+        <li><a href="#epic-read-status">알림 읽음 처리</a> (NOTI-6 ~ NOTI-8)
+          <ul class="sub">
+            <li><a href="#NOTI-6">NOTI-6</a></li>
+            <li><a href="#NOTI-7">NOTI-7</a></li>
+            <li><a href="#NOTI-8">NOTI-8</a></li>
+          </ul>
+        </li>
+        <li><a href="#epic-preferences">알림 on/off 설정</a> (NOTI-13 ~ NOTI-14)
+          <ul class="sub">
+            <li><a href="#NOTI-13">NOTI-13</a></li>
+            <li><a href="#NOTI-14">NOTI-14</a></li>
+          </ul>
+        </li>
+        <li><a href="#epic-web-push">차기 마일스톤 백로그: 웹 푸시</a> <span class="badge badge-deferred" style="font-size:.62rem;">연기 2026-07-07</span> (NOTI-9 ~ NOTI-12)
+          <ul class="sub">
+            <li><a href="#NOTI-9">NOTI-9</a></li>
+            <li><a href="#NOTI-10">NOTI-10</a></li>
+            <li><a href="#NOTI-11">NOTI-11</a></li>
+            <li><a href="#NOTI-12">NOTI-12</a></li>
+          </ul>
+        </li>
+        <li><a href="#oos">이번 범위 제외</a></li>
+        <li><a href="#order">권장 착수 순서</a></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ================= EPIC 1 ================= -->
+  <section class="epic-block" id="epic-in-app">
+    <h3 class="epic-title">에픽: 인앱 알림센터 <span class="badge epic-pill">feature:in-app-notification-center</span></h3>
+    <p class="epic-desc">기획서 4장 "인앱 알림센터"(Must). 벨 아이콘·뱃지·목록·이동을 3초 이내 실시간으로 반영한다.</p>
+    <div class="grid">
+
+      <article class="card" id="NOTI-1">
+        <div class="card-head"><span class="id">NOTI-1</span><h4>알림 데이터 모델 및 저장 API 설계</h4></div>
+        <div class="badges">
+          <span class="badge type-chore">chore</span>
+          <span class="badge p-P0">P0</span>
+          <span class="badge size">S</span>
+          <span class="badge epic-pill">인앱 알림센터</span>
+        </div>
+        <div class="field"><span class="label">의존성:</span><span class="none">없음</span></div>
+        <p class="field"><span class="label">설명:</span> 유형(댓글/결제)·요약 내용·발생 시각·읽음 여부·대상 링크를 담는 알림 엔티티와 생성/조회 API를 만든다. 이후 모든 알림 기능(실시간 전달, 목록, 읽음 처리, on/off)이 이 모델 위에서 동작하므로 가장 먼저 확정한다.</p>
+        <ul class="ac">
+          <li>알림 레코드에 유형, 요약, 발생 시각, 읽음 여부, 대상 딥링크 필드가 저장된다.</li>
+          <li>댓글/결제 이벤트 발생 시 알림 레코드가 생성되는 내부 API(or 이벤트 훅)가 있다.</li>
+          <li>사용자별 알림 목록을 최신순으로 조회하는 API가 있다.</li>
+        </ul>
+        <div class="links">
+          이동: <a href="../plans/notification-feature.html">기획서</a>
+          · 기능: <span class="badge type-feature" style="font-weight:400">인앱 알림센터</span>
+        </div>
+      </article>
+
+      <article class="card" id="NOTI-2">
+        <div class="card-head"><span class="id">NOTI-2</span><h4>실시간 알림 전달 채널 구축</h4></div>
+        <div class="badges">
+          <span class="badge type-feature">feature</span>
+          <span class="badge p-P0">P0</span>
+          <span class="badge size">M</span>
+          <span class="badge epic-pill">인앱 알림센터</span>
+        </div>
+        <div class="field"><span class="label">의존성:</span><span class="deps"><a href="#NOTI-1">NOTI-1</a></span></div>
+        <p class="field"><span class="label">설명:</span> 이벤트 발생 후 3초 이내 클라이언트에 반영하기 위한 상시 연결(WebSocket/SSE) 또는 폴링 채널을 구축한다. <strong>기획서 오픈 이슈: 방식(WebSocket vs SSE vs 폴링) 미확정</strong> — 착수 전 아키텍처 결정 필요.</p>
+        <ul class="ac">
+          <li>이벤트 발생 후 3초 이내 클라이언트가 새 알림을 수신한다(측정 가능).</li>
+          <li>연결 끊김/재접속 시에도 유실 없이 알림이 전달되거나 목록 재조회로 보완된다.</li>
+          <li>전달 방식 선택 근거와 인프라 비용이 문서화된다.</li>
+        </ul>
+        <div class="links">
+          이동: <a href="../plans/notification-feature.html">기획서(리스크 7장, 오픈이슈 8장)</a>
+        </div>
+      </article>
+
+      <article class="card" id="NOTI-3">
+        <div class="card-head"><span class="id">NOTI-3</span><h4>헤더 벨 아이콘 + 미확인 개수 뱃지</h4></div>
+        <div class="badges">
+          <span class="badge type-feature">feature</span>
+          <span class="badge p-P0">P0</span>
+          <span class="badge size">S</span>
+          <span class="badge epic-pill">인앱 알림센터</span>
+        </div>
+        <div class="field"><span class="label">의존성:</span><span class="deps"><a href="#NOTI-2">NOTI-2</a></span></div>
+        <p class="field"><span class="label">설명:</span> 공통 헤더 영역에 알림 진입점(벨 아이콘)과 미확인 개수 뱃지를 표시한다. 실시간 채널(NOTI-2)로부터 이벤트를 받아 즉시 뱃지 숫자를 갱신한다.</p>
+        <ul class="ac">
+          <li>헤더에 벨 아이콘이 표시되고 클릭 시 알림 목록(NOTI-4)이 열린다.</li>
+          <li>미확인 알림이 있으면 뱃지에 정확한 개수가 표시된다.</li>
+          <li>새 이벤트 발생 시 새로고침 없이 뱃지 숫자가 갱신된다.</li>
+        </ul>
+        <div class="links">
+          이동: <a href="../plans/notification-feature.html">기획서 4장</a>
+        </div>
+      </article>
+
+      <article class="card" id="NOTI-4">
+        <div class="card-head"><span class="id">NOTI-4</span><h4>알림 목록 UI (알림센터)</h4></div>
+        <div class="badges">
+          <span class="badge type-feature">feature</span>
+          <span class="badge p-P0">P0</span>
+          <span class="badge size">M</span>
+          <span class="badge epic-pill">인앱 알림센터</span>
+        </div>
+        <div class="field"><span class="label">의존성:</span><span class="deps"><a href="#NOTI-1">NOTI-1</a></span></div>
+        <p class="field"><span class="label">설명:</span> 알림 목록을 최신순으로 정렬해 보여준다. 항목별로 유형(댓글/결제), 내용 요약, 발생 시각, 읽음 여부를 표시한다. 목록 최대 노출 개수/페이지네이션 정책은 기획서 오픈 이슈로 미정이므로 우선 기본 목록(예: 최근 N건)으로 구현하고 정책 확정 시 후속 조정한다.</p>
+        <ul class="ac">
+          <li>알림이 발생 시각 최신순으로 정렬되어 표시된다.</li>
+          <li>각 항목에 유형·요약·시각·읽음 여부가 노출된다.</li>
+          <li>미확인 항목이 시각적으로 구분된다.</li>
+        </ul>
+        <div class="links">
+          이동: <a href="../plans/notification-feature.html">기획서 4장</a>
+        </div>
+      </article>
+
+      <article class="card" id="NOTI-5">
+        <div class="card-head"><span class="id">NOTI-5</span><h4>알림 클릭 시 대상 화면으로 이동 (딥링크)</h4></div>
+        <div class="badges">
+          <span class="badge type-feature">feature</span>
+          <span class="badge p-P1">P1</span>
+          <span class="badge size">S</span>
+          <span class="badge epic-pill">인앱 알림센터</span>
+        </div>
+        <div class="field"><span class="label">의존성:</span><span class="deps"><a href="#NOTI-4">NOTI-4</a></span></div>
+        <p class="field"><span class="label">설명:</span> 알림 항목 클릭 시 해당 댓글 또는 결제 상세로 이동한다. <strong>기획서 오픈 이슈: 댓글/결제 각각의 목적지 URL(딥링크) 규칙 미정</strong> — 규칙 확정이 선행되어야 한다. (이 규칙은 차기 마일스톤에서 웹 푸시가 재개될 경우 클릭 진입 흐름에도 재사용될 예정이다.)</p>
+        <ul class="ac">
+          <li>댓글 알림 클릭 시 해당 댓글 위치로 정확히 이동한다.</li>
+          <li>결제 알림 클릭 시 해당 결제 상세로 정확히 이동한다.</li>
+          <li>이동과 동시에 해당 알림이 읽음 처리된다(NOTI-6 연계).</li>
+        </ul>
+        <div class="links">
+          이동: <a href="../plans/notification-feature.html">기획서 8장 오픈 이슈</a>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ================= EPIC 2 ================= -->
+  <section class="epic-block" id="epic-read-status">
+    <h3 class="epic-title">에픽: 알림 읽음 처리 <span class="badge epic-pill">feature:notification-read-status</span></h3>
+    <p class="epic-desc">기획서 4장 "알림 읽음 처리"(Must). 개별/일괄 읽음과 서버 저장을 통한 세션 간 일관성을 보장한다.</p>
+    <div class="grid">
+
+      <article class="card" id="NOTI-6">
+        <div class="card-head"><span class="id">NOTI-6</span><h4>개별 알림 읽음 처리</h4></div>
+        <div class="badges">
+          <span class="badge type-feature">feature</span>
+          <span class="badge p-P0">P0</span>
+          <span class="badge size">S</span>
+          <span class="badge epic-pill">알림 읽음 처리</span>
+        </div>
+        <div class="field"><span class="label">의존성:</span><span class="deps"><a href="#NOTI-4">NOTI-4</a></span></div>
+        <p class="field"><span class="label">설명:</span> 알림 항목을 개별적으로 읽음 처리하고, 처리 즉시 미확인 개수(NOTI-3 뱃지)에 반영한다. 읽음 상태는 서버에 저장한다.</p>
+        <ul class="ac">
+          <li>알림 항목을 읽음 처리하면 서버에 상태가 저장된다.</li>
+          <li>읽음 처리 즉시 헤더 뱃지의 미확인 개수가 감소한다.</li>
+          <li>이미 읽은 알림은 목록에서 읽음 상태로 구분 표시된다.</li>
+        </ul>
+        <div class="links">
+          이동: <a href="../plans/notification-feature.html">기획서 4장</a>
+        </div>
+      </article>
+
+      <article class="card" id="NOTI-7">
+        <div class="card-head"><span class="id">NOTI-7</span><h4>모두 읽음 일괄 처리</h4></div>
+        <div class="badges">
+          <span class="badge type-feature">feature</span>
+          <span class="badge p-P1">P1</span>
+          <span class="badge size">S</span>
+          <span class="badge epic-pill">알림 읽음 처리</span>
+        </div>
+        <div class="field"><span class="label">의존성:</span><span class="deps"><a href="#NOTI-6">NOTI-6</a></span></div>
+        <p class="field"><span class="label">설명:</span> "모두 읽음" 버튼으로 사용자의 모든 미확인 알림을 한 번에 읽음 처리한다.</p>
+        <ul class="ac">
+          <li>"모두 읽음" 클릭 시 목록의 모든 미확인 알림이 읽음 상태로 바뀐다.</li>
+          <li>헤더 뱃지의 미확인 개수가 0으로 바뀐다.</li>
+          <li>서버 반영 실패 시 사용자에게 오류가 안내된다.</li>
+        </ul>
+        <div class="links">
+          이동: <a href="../plans/notification-feature.html">기획서 4장</a>
+        </div>
+      </article>
+
+      <article class="card" id="NOTI-8">
+        <div class="card-head"><span class="id">NOTI-8</span><h4>읽음 상태 세션/기기 간 일관성 검증</h4></div>
+        <div class="badges">
+          <span class="badge type-chore">chore</span>
+          <span class="badge p-P1">P1</span>
+          <span class="badge size">S</span>
+          <span class="badge epic-pill">알림 읽음 처리</span>
+        </div>
+        <div class="field"><span class="label">의존성:</span><span class="deps"><a href="#NOTI-6">NOTI-6</a></span></div>
+        <p class="field"><span class="label">설명:</span> 성공 지표("읽음 처리가 서버에 반영되고 새로고침·타 세션에서도 유지")를 보장하기 위한 검증 및 필요 시 캐시/동기화 로직 보완. 다른 브라우저·기기로 로그인해도 동일한 읽음 상태가 보이는지 확인한다.</p>
+        <ul class="ac">
+          <li>한 기기에서 읽음 처리한 알림이 다른 기기/세션에서도 읽음으로 보인다.</li>
+          <li>새로고침 후에도 읽음 상태가 유지된다.</li>
+          <li>동시성(같은 알림을 두 세션에서 동시 읽음 처리) 시 오류 없이 일관된 상태로 수렴한다.</li>
+        </ul>
+        <div class="links">
+          이동: <a href="../plans/notification-feature.html">기획서 6장 성공 지표</a>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ================= EPIC 3 ================= -->
+  <section class="epic-block" id="epic-preferences">
+    <h3 class="epic-title">에픽: 알림 on/off 설정 <span class="badge epic-pill">feature:notification-preferences</span></h3>
+    <p class="epic-desc">기획서 4장 "알림 on/off 설정"(Could). 이번 마일스톤은 <strong>인앱 채널</strong> 기준으로 유형별 수신 제어를 제공한다. 웹 푸시 채널 설정은 웹 푸시 자체가 차기 마일스톤으로 연기(2026-07-07)됨에 따라 함께 연기됐다.</p>
+    <div class="grid">
+
+      <article class="card" id="NOTI-13">
+        <div class="card-head"><span class="id">NOTI-13</span><h4>알림 유형별 on/off 설정 UI 및 API (인앱 채널)</h4></div>
+        <div class="badges">
+          <span class="badge type-feature">feature</span>
+          <span class="badge p-P2">P2</span>
+          <span class="badge size">M</span>
+          <span class="badge epic-pill">알림 on/off 설정</span>
+        </div>
+        <div class="field"><span class="label">의존성:</span><span class="deps"><a href="#NOTI-1">NOTI-1</a></span></div>
+        <p class="field"><span class="label">설명:</span> 사용자가 댓글/결제 유형별로 <strong>인앱</strong> 수신 여부를 설정할 수 있는 화면과 저장 API를 만든다. <strong>기획서 오픈 이슈: 기본값(기본 on/off) 미정</strong> — 우선 모든 유형 기본 on으로 구현한다. 웹 푸시 채널 설정은 차기 마일스톤 연기(2026-07-07)로 이번 범위에서 제외하며, 설정 화면에는 "차기 제공 예정"으로 비활성 노출한다.</p>
+        <ul class="ac">
+          <li>댓글/결제 각각의 인앱 수신 여부를 개별적으로 켜고 끌 수 있다.</li>
+          <li>설정이 서버에 저장되어 새로고침/재로그인 후에도 유지된다.</li>
+          <li>웹 푸시 채널 옵션은 선택 불가(disabled)로 노출되며 "차기 제공 예정" 라벨이 표시된다.</li>
+          <li>미확정 정책(기본값)은 문서화된 가정으로 표시된다.</li>
+        </ul>
+        <div class="links">
+          이동: <a href="../plans/notification-feature.html">기획서 4장, 8장 오픈 이슈</a>
+        </div>
+      </article>
+
+      <article class="card" id="NOTI-14">
+        <div class="card-head"><span class="id">NOTI-14</span><h4>off 설정 유형에 대한 발송 차단 적용 (인앱 채널)</h4></div>
+        <div class="badges">
+          <span class="badge type-feature">feature</span>
+          <span class="badge p-P2">P2</span>
+          <span class="badge size">S</span>
+          <span class="badge epic-pill">알림 on/off 설정</span>
+        </div>
+        <div class="field"><span class="label">의존성:</span><span class="deps"><a href="#NOTI-13">NOTI-13</a> · <a href="#NOTI-2">NOTI-2</a></span></div>
+        <p class="field"><span class="label">설명:</span> NOTI-13에서 저장된 설정을 실시간 전달(NOTI-2) 경로에 적용해, off된 유형의 인앱 알림이 전달되지 않도록 한다. 성공 지표("off한 유형이 해당 채널로 더 이상 전달되지 않음")를 인앱 채널 기준으로 충족한다. 웹 푸시 발송 차단은 차기 마일스톤에서 웹 푸시가 재개될 때 함께 구현한다.</p>
+        <ul class="ac">
+          <li>인앱 알림을 off한 유형은 알림센터/뱃지에 나타나지 않는다.</li>
+          <li>설정 변경 후 즉시(다음 이벤트부터) 반영된다.</li>
+        </ul>
+        <div class="links">
+          이동: <a href="../plans/notification-feature.html">기획서 6장 성공 지표</a>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ================= 차기 마일스톤 백로그: 웹 푸시 (2026-07-07 연기) ================= -->
+  <section class="epic-block" id="epic-web-push">
+    <h3 class="epic-title">차기 마일스톤 백로그: 웹 푸시 <span class="badge epic-pill">feature:web-push</span> <span class="badge badge-deferred">연기 2026-07-07</span></h3>
+    <p class="backlog-note"><strong>[변경 2026-07-07]</strong> 기획서 4장 "웹 푸시"(구 Should)는 이번 범위에서 제외되어 차기 마일스톤으로 연기되었다. 아래 NOTI-9 ~ NOTI-12는 삭제하지 않고 백로그로 보존하며, 착수 순서·이슈 수 집계에서는 제외한다.</p>
+    <div class="grid">
+
+      <article class="card" id="NOTI-9">
+        <div class="card-head"><span class="id">NOTI-9</span><h4>웹 푸시 발송 인프라 선정 및 서버 기반 구축</h4></div>
+        <div class="badges">
+          <span class="badge type-chore">chore</span>
+          <span class="badge p-P1">P1</span>
+          <span class="badge size">L</span>
+          <span class="badge epic-pill">웹 푸시</span>
+          <span class="badge badge-deferred">차기 마일스톤 연기(2026-07-07)</span>
+        </div>
+        <div class="field"><span class="label">의존성:</span><span class="none">없음</span></div>
+        <p class="field"><span class="label">설명:</span> <strong>기획서 오픈 이슈: 자체 Web Push(VAPID) vs FCM 등 인프라 미선정</strong> — 우선 조사·의사결정 후 발송 서버(구독 저장, 페이로드 발송, 재시도)를 구축한다. 규모가 커 별도 스파이크/설계 검토를 권장한다.</p>
+        <ul class="ac">
+          <li>Web Push 발송 방식(VAPID 자체 구현 vs FCM 등)이 결정되고 근거가 문서화된다.</li>
+          <li>서버에서 구독 정보를 저장하고 대상 사용자에게 푸시 페이로드를 발송할 수 있다.</li>
+          <li>발송 실패(만료된 구독 등)에 대한 기본 처리(삭제/재시도)가 있다.</li>
+        </ul>
+        <div class="links">
+          이동: <a href="../plans/notification-feature.html">기획서 8장 오픈 이슈</a>
+        </div>
+      </article>
+
+      <article class="card" id="NOTI-10">
+        <div class="card-head"><span class="id">NOTI-10</span><h4>브라우저 푸시 권한 요청 및 구독 등록/해제</h4></div>
+        <div class="badges">
+          <span class="badge type-feature">feature</span>
+          <span class="badge p-P1">P1</span>
+          <span class="badge size">M</span>
+          <span class="badge epic-pill">웹 푸시</span>
+          <span class="badge badge-deferred">차기 마일스톤 연기(2026-07-07)</span>
+        </div>
+        <div class="field"><span class="label">의존성:</span><span class="deps"><a href="#NOTI-9">NOTI-9</a></span></div>
+        <p class="field"><span class="label">설명:</span> 클라이언트에서 브라우저 푸시 권한을 요청하고, 허용 시 구독을 서버(NOTI-9)에 등록한다. 사용자가 원할 경우 구독을 해제할 수 있다.</p>
+        <ul class="ac">
+          <li>사용자가 푸시 권한을 허용하면 구독 정보가 서버에 등록된다.</li>
+          <li>사용자가 구독을 해제하면 서버에서도 해당 구독이 제거된다.</li>
+          <li>권한 거부 시 인앱 알림(NOTI-3, NOTI-4)은 정상 동작한다(안전망).</li>
+        </ul>
+        <div class="links">
+          이동: <a href="../plans/notification-feature.html">기획서 4장, 7장 리스크(권한 거부)</a>
+        </div>
+      </article>
+
+      <article class="card" id="NOTI-11">
+        <div class="card-head"><span class="id">NOTI-11</span><h4>Service Worker 푸시 수신 및 클릭 시 화면 진입</h4></div>
+        <div class="badges">
+          <span class="badge type-feature">feature</span>
+          <span class="badge p-P1">P1</span>
+          <span class="badge size">M</span>
+          <span class="badge epic-pill">웹 푸시</span>
+          <span class="badge badge-deferred">차기 마일스톤 연기(2026-07-07)</span>
+        </div>
+        <div class="field"><span class="label">의존성:</span><span class="deps"><a href="#NOTI-10">NOTI-10</a> · <a href="#NOTI-5">NOTI-5</a></span></div>
+        <p class="field"><span class="label">설명:</span> Service Worker에서 푸시 메시지를 수신해 브라우저 알림으로 표시하고, 앱 미실행 상태에서도 동작하도록 한다. 클릭 시 NOTI-5의 딥링크 규칙을 재사용해 관련 화면으로 진입한다. 인앱 포그라운드 상태에서의 중복 알림 억제 정책(NOTI-2)도 함께 적용한다.</p>
+        <ul class="ac">
+          <li>앱을 열지 않은 상태에서 이벤트 발생 시 브라우저 푸시 알림을 수신한다.</li>
+          <li>푸시 알림 클릭 시 해당 댓글/결제 상세 화면으로 진입한다.</li>
+          <li>앱이 포그라운드일 때는 정책에 따라 중복 알림이 억제된다.</li>
+        </ul>
+        <div class="links">
+          이동: <a href="../plans/notification-feature.html">기획서 7장 리스크(중복 전달)</a>
+        </div>
+      </article>
+
+      <article class="card" id="NOTI-12">
+        <div class="card-head"><span class="id">NOTI-12</span><h4>푸시 미지원 브라우저 안내 UX</h4></div>
+        <div class="badges">
+          <span class="badge type-feature">feature</span>
+          <span class="badge p-P2">P2</span>
+          <span class="badge size">S</span>
+          <span class="badge epic-pill">웹 푸시</span>
+          <span class="badge badge-deferred">차기 마일스톤 연기(2026-07-07)</span>
+        </div>
+        <div class="field"><span class="label">의존성:</span><span class="deps"><a href="#NOTI-10">NOTI-10</a></span></div>
+        <p class="field"><span class="label">설명:</span> 표준 Web Push(Service Worker)를 지원하지 않는 브라우저/OS에서 사용자에게 안내 문구를 보여주고 인앱 알림으로 대체되도록 graceful degradation을 적용한다. <strong>기획서 오픈 이슈: 정확한 안내 문구/대체 UX 미정</strong>이므로 기본 안내 문구로 우선 구현한다.</p>
+        <ul class="ac">
+          <li>미지원 브라우저에서는 푸시 권한 요청 UI 대신 안내 메시지가 표시된다.</li>
+          <li>미지원 환경에서도 인앱 알림센터는 정상 동작한다.</li>
+        </ul>
+        <div class="links">
+          이동: <a href="../plans/notification-feature.html">기획서 7장 리스크(브라우저 호환성)</a>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <section id="oos">
+    <h2>이번 범위 제외</h2>
+    <div class="oos-card">
+      <p>기획서 5장(Scope)에서 명시적으로 제외한 항목이며, 이슈로 만들지 않는다. (웹 푸시는 완전 제외가 아니라 <a href="#epic-web-push">차기 마일스톤 백로그</a>로 연기된 것이므로 아래 목록과 구분한다.)</p>
+      <ul>
+        <li>이메일 알림</li>
+        <li>SMS 알림</li>
+        <li>다국어(i18n) 대응</li>
+        <li>모바일 네이티브 앱 푸시(iOS/Android 앱)</li>
+        <li>댓글·결제 외 신규 이벤트 유형(추후 확장)</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="order">
+    <h2>권장 착수 순서</h2>
+    <div class="order-card">
+      <p style="margin-top:0; font-size:.85rem; color:#6b7280;">의존성 그래프를 위상 정렬한 단계별 착수 순서(활성 이슈 NOTI-1~8, 13, 14 기준). 같은 단계 내 항목은 병렬 진행 가능하다. 웹 푸시(NOTI-9~12)는 차기 마일스톤 백로그로 연기되어 이번 착수 순서에서 제외했다.</p>
+
+      <div class="phase">
+        <h4>0단계 — 기반</h4>
+        <div class="chips"><a href="#NOTI-1">NOTI-1 데이터 모델</a></div>
+      </div>
+      <div class="phase">
+        <h4>1단계</h4>
+        <div class="chips"><a href="#NOTI-2">NOTI-2 실시간 채널</a><a href="#NOTI-4">NOTI-4 알림 목록 UI</a></div>
+      </div>
+      <div class="phase">
+        <h4>2단계</h4>
+        <div class="chips"><a href="#NOTI-3">NOTI-3 벨/뱃지</a><a href="#NOTI-5">NOTI-5 딥링크 이동</a><a href="#NOTI-6">NOTI-6 개별 읽음</a><a href="#NOTI-13">NOTI-13 on/off 설정</a></div>
+      </div>
+      <div class="phase">
+        <h4>3단계</h4>
+        <div class="chips"><a href="#NOTI-7">NOTI-7 모두 읽음</a><a href="#NOTI-8">NOTI-8 일관성 검증</a></div>
+      </div>
+      <div class="phase">
+        <h4>4단계</h4>
+        <div class="chips"><a href="#NOTI-14">NOTI-14 off 발송 차단</a></div>
+      </div>
+
+      <p class="assume">참고: 우선순위(P0/P1/P2)는 기획서의 Must/Should/Could 표기를 그대로 반영했다. NOTI-2의 구체 기술 방식은 기획서 8장 오픈 이슈로 미확정 상태이며, 착수 전 별도 의사결정이 필요하다. 웹 푸시 백로그(NOTI-9~12) 착수 시 참고 순서: NOTI-9 → NOTI-10 → (NOTI-11 · NOTI-5 완료 후, NOTI-12) 순.</p>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

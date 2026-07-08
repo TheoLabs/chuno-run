@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>알림 기능 와이어프레임</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2.5rem 1.5rem 5rem; line-height: 1.6;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+    background: #eef0f4; color: #1a1a1a;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+
+  /* ---- top doc header ---- */
+  .doc-header { background: #fff; border: 1px solid rgba(0,0,0,.08); border-radius: 12px; padding: 1.4rem 1.6rem; margin-bottom: 2.4rem; }
+  .doc-header h1 { font-size: 1.5rem; margin: 0 0 .5rem; }
+  .doc-header .meta { color: #6b7280; font-size: .82rem; display: flex; flex-wrap: wrap; gap: .4rem 1rem; margin-bottom: .8rem; }
+  .doc-header .links a { font-size: .85rem; color: #4338ca; text-decoration: none; margin-right: 1rem; }
+  .doc-header .links a:hover { text-decoration: underline; }
+
+  /* ---- screen section ---- */
+  .screen { margin: 0 0 3rem; }
+  .screen-head { display: flex; align-items: baseline; gap: .7rem; margin-bottom: .6rem; }
+  .screen-head .num { font-size: .78rem; font-weight: 700; color: #fff; background: #6366f1; border-radius: 6px; padding: .15rem .55rem; }
+  .screen-head h2 { font-size: 1.15rem; margin: 0; }
+  .annotation {
+    background: #fffbea; border: 1px solid #fde68a; border-left: 4px solid #d97706;
+    border-radius: 8px; padding: .75rem 1rem; font-size: .84rem; color: #78350f; margin-bottom: 1rem;
+  }
+  .annotation b { color: #92400e; }
+  .annotation .reqs { margin-top: .4rem; }
+  .annotation .reqs a {
+    display: inline-block; font-size: .74rem; font-weight: 600; color: #4338ca; background: #eef2ff;
+    border-radius: 999px; padding: .12rem .6rem; margin: .1rem .35rem .1rem 0; text-decoration: none;
+  }
+  .annotation .reqs a:hover { background: #e0e7ff; text-decoration: underline; }
+  .annotation .state-tag { display:inline-block; font-size:.68rem; font-weight:700; padding:.08rem .5rem; border-radius:999px; margin-right:.3rem; background:#e5e7eb; color:#374151; }
+  .annotation .state-tag.deferred { background:#fef3c7; color:#92400e; }
+  .deferred-banner { background:#fef9c3; border:1px solid #fde68a; border-left:4px solid #ca8a04; border-radius:8px; padding:.6rem .9rem; font-size:.8rem; color:#854d0e; margin-bottom:.8rem; }
+  .toggle.disabled { background:#e5e7eb; opacity:.6; cursor:not-allowed; }
+  .toggle.disabled::after { background:#f3f4f6; }
+  .pref-future-tag { display:block; font-size:.62rem; font-weight:700; color:#92400e; margin-top:.3rem; }
+
+  /* ---- device frame (desktop web) ---- */
+  .frame-desktop {
+    background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.08);
+    border: 1px solid rgba(0,0,0,.1); max-width: 980px;
+  }
+  .browser-bar { background: #e5e7eb; padding: .5rem .8rem; display: flex; align-items: center; gap: .5rem; border-bottom: 1px solid rgba(0,0,0,.08); }
+  .browser-bar .dot { width: 9px; height: 9px; border-radius: 50%; background: #d1d5db; }
+  .browser-bar .dot:nth-child(1) { background: #f87171; }
+  .browser-bar .dot:nth-child(2) { background: #fbbf24; }
+  .browser-bar .dot:nth-child(3) { background: #34d399; }
+  .browser-bar .url { flex: 1; background: #fff; border-radius: 6px; padding: .25rem .7rem; font-size: .72rem; color: #6b7280; margin-left: .5rem; }
+
+  /* ---- app header mock ---- */
+  .app-header { display: flex; align-items: center; justify-content: space-between; padding: .8rem 1.4rem; border-bottom: 1px solid rgba(0,0,0,.08); background: #fff; position: relative; }
+  .app-logo { font-weight: 800; font-size: 1.05rem; color: #4338ca; letter-spacing: -.02em; }
+  .app-nav { display: flex; align-items: center; gap: 1.4rem; }
+  .app-nav .navlink { font-size: .84rem; color: #4b5563; }
+  .bell-wrap { position: relative; cursor: pointer; }
+  .bell-icon { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #f3f4f6; font-size: 1.1rem; }
+  .badge { position: absolute; top: -4px; right: -4px; background: #ef4444; color: #fff; font-size: .62rem; font-weight: 700; min-width: 16px; height: 16px; border-radius: 999px; display: flex; align-items: center; justify-content: center; padding: 0 3px; border: 2px solid #fff; }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; background: #c7c9d1; }
+  .app-body { padding: 2.2rem 1.4rem; background: #f9fafb; min-height: 160px; color: #9ca3af; font-size: .85rem; text-align: center; }
+
+  /* ---- notification panel dropdown ---- */
+  .noti-panel-anchor { position: relative; }
+  .noti-panel {
+    position: absolute; top: 46px; right: 0; width: 340px; background: #fff; border: 1px solid rgba(0,0,0,.1);
+    border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.15); z-index: 10; overflow: hidden;
+  }
+  .noti-panel-head { display: flex; align-items: center; justify-content: space-between; padding: .8rem 1rem; border-bottom: 1px solid rgba(0,0,0,.07); }
+  .noti-panel-head strong { font-size: .92rem; }
+  .noti-panel-head .mark-all { font-size: .74rem; color: #4338ca; cursor: pointer; }
+  .noti-list { max-height: 340px; overflow-y: auto; }
+  .noti-item { display: flex; gap: .6rem; padding: .75rem 1rem; border-bottom: 1px solid rgba(0,0,0,.05); align-items: flex-start; }
+  .noti-item.unread { background: #f5f6ff; }
+  .noti-item .dot-unread { width: 8px; height: 8px; border-radius: 50%; background: #6366f1; margin-top: .4rem; flex-shrink: 0; }
+  .noti-item .dot-read { width: 8px; height: 8px; flex-shrink: 0; }
+  .noti-icon { width: 30px; height: 30px; border-radius: 8px; background: #e5e7eb; display: flex; align-items: center; justify-content: center; font-size: .85rem; flex-shrink: 0; }
+  .noti-icon.comment { background: #dbeafe; }
+  .noti-icon.payment { background: #dcfce7; }
+  .noti-body { flex: 1; min-width: 0; }
+  .noti-type-tag { font-size: .65rem; font-weight: 700; padding: .05rem .4rem; border-radius: 4px; margin-bottom: .2rem; display: inline-block; }
+  .noti-type-tag.comment { background: #dbeafe; color: #1e40af; }
+  .noti-type-tag.payment { background: #dcfce7; color: #166534; }
+  .noti-text { font-size: .82rem; color: #1f2937; margin: .1rem 0; }
+  .noti-time { font-size: .7rem; color: #9ca3af; }
+  .noti-panel-foot { text-align: center; padding: .6rem; font-size: .78rem; color: #4338ca; border-top: 1px solid rgba(0,0,0,.06); cursor: pointer; }
+
+  /* empty / loading states */
+  .noti-empty { padding: 2.4rem 1rem; text-align: center; color: #9ca3af; font-size: .85rem; }
+  .noti-empty .icon { font-size: 2rem; margin-bottom: .5rem; }
+  .skeleton-line { background: linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 37%,#e5e7eb 63%); background-size: 400% 100%; border-radius: 4px; animation: shimmer 1.4s infinite; }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+  /* two-column compare */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+  .compare-label { font-size: .78rem; font-weight: 700; color: #6b7280; margin-bottom: .4rem; text-transform: uppercase; letter-spacing: .03em; }
+  @media (max-width: 760px) { .compare { grid-template-columns: 1fr; } }
+
+  /* target detail pages */
+  .detail-page { padding: 1.4rem; }
+  .detail-page .crumb { font-size: .75rem; color: #9ca3af; margin-bottom: .8rem; }
+  .comment-card { background: #f9fafb; border: 1px solid rgba(0,0,0,.06); border-radius: 8px; padding: 1rem; }
+  .comment-card .author { font-weight: 700; font-size: .85rem; }
+  .comment-card .body { font-size: .85rem; color: #374151; margin-top: .4rem; }
+  .comment-card.highlight { border: 2px solid #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.15); }
+  .payment-summary { background: #f9fafb; border: 1px solid rgba(0,0,0,.06); border-radius: 8px; padding: 1rem 1.2rem; }
+  .payment-summary .row { display: flex; justify-content: space-between; font-size: .85rem; padding: .3rem 0; border-bottom: 1px dashed rgba(0,0,0,.08); }
+  .payment-summary .row:last-child { border-bottom: none; font-weight: 700; }
+
+  /* browser native permission prompt */
+  .permission-prompt { position: absolute; top: 6px; left: 60px; width: 300px; background: #fff; border: 1px solid rgba(0,0,0,.15); border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.2); padding: .9rem 1rem; font-size: .8rem; z-index: 20; }
+  .permission-prompt .site { display: flex; align-items: center; gap: .4rem; color: #6b7280; font-size: .72rem; margin-bottom: .5rem; }
+  .permission-prompt .q { margin-bottom: .8rem; color: #1f2937; }
+  .permission-prompt .btns { display: flex; gap: .5rem; justify-content: flex-end; }
+  .btn { font-size: .78rem; padding: .35rem .8rem; border-radius: 6px; border: 1px solid rgba(0,0,0,.15); background: #f3f4f6; cursor: pointer; }
+  .btn.primary { background: #4338ca; color: #fff; border-color: #4338ca; }
+
+  /* OS notification */
+  .os-notif-stage { background: #0f172a; padding: 2rem 1.4rem; min-height: 220px; position: relative; }
+  .os-notif { position: absolute; top: 16px; right: 16px; width: 320px; background: #1e293b; color: #fff; border-radius: 10px; padding: .8rem .9rem; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+  .os-notif .top { display: flex; align-items: center; gap: .5rem; font-size: .7rem; color: #94a3b8; margin-bottom: .3rem; }
+  .os-notif .favicon { width: 16px; height: 16px; border-radius: 3px; background: #4338ca; }
+  .os-notif .title { font-weight: 700; font-size: .85rem; }
+  .os-notif .body { font-size: .78rem; color: #cbd5e1; margin-top: .2rem; }
+
+  /* inline banner */
+  .banner { display: flex; align-items: center; gap: .6rem; background: #fef3c7; color: #92400e; padding: .7rem 1rem; font-size: .8rem; border-bottom: 1px solid #fde68a; }
+  .banner .x { margin-left: auto; cursor: pointer; color: #92400e; opacity: .6; }
+
+  /* settings page */
+  .settings-wrap { padding: 1.6rem; }
+  .settings-title { font-size: 1.05rem; font-weight: 700; margin-bottom: .3rem; }
+  .settings-sub { font-size: .8rem; color: #6b7280; margin-bottom: 1.4rem; }
+  table.pref { border-collapse: collapse; width: 100%; font-size: .85rem; }
+  table.pref th, table.pref td { border: 1px solid rgba(0,0,0,.1); padding: .7rem .9rem; text-align: center; }
+  table.pref th { background: #f3f4f6; font-weight: 600; }
+  table.pref td:first-child, table.pref th:first-child { text-align: left; }
+  .toggle { width: 40px; height: 22px; border-radius: 999px; background: #d1d5db; position: relative; display: inline-block; cursor: pointer; }
+  .toggle.on { background: #4338ca; }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .toggle.on::after { left: 20px; }
+
+  code { background: rgba(0,0,0,.06); padding: .1rem .35rem; border-radius: 4px; font-size: .85em; }
+  .footer-note { text-align: center; color: #9ca3af; font-size: .78rem; margin-top: 2rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="doc-header">
+    <h1>알림 기능 — 와이어프레임 (중간 충실도)</h1>
+    <div class="meta">
+      <span>slug: <code>notification-feature</code></span>
+      <span>대상 플랫폼: B2C 웹 앱 (데스크톱)</span>
+      <span>기준 기획: 알림 기능 기획</span>
+    </div>
+    <div class="links">
+      <a href="../plans/notification-feature.html">기획서로 돌아가기</a>
+      <a href="../issues/notification-feature.html">관련 이슈 문서 전체 보기</a>
+    </div>
+    <p style="margin:.6rem 0 0; font-size:.78rem; color:#92400e;"><strong>[변경 2026-07-07]</strong> 웹 푸시 관련 화면(7~9)은 차기 마일스톤으로 연기되었다. 삭제하지 않고 참고용으로 보존하며 "차기 마일스톤" 표기로 구분한다.</p>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 1: 공통 헤더 - 기본 상태 (미확인 알림 없음) -->
+  <!-- ============================================================ -->
+  <div class="screen">
+    <div class="screen-head"><span class="num">1</span><h2>공통 헤더 — 기본 상태</h2></div>
+    <div class="annotation">
+      <span class="state-tag">기본 상태</span>
+      <b>목적.</b> 모든 페이지 상단에 노출되는 알림 진입점(벨 아이콘)의 기본 형태를 보여준다. 미확인 알림이 없을 때는 뱃지가 표시되지 않는다.
+      <br><b>인터랙션.</b> 벨 아이콘 클릭 시 알림센터 드롭다운(화면 2)이 열린다.
+      <div class="reqs">
+        관련 요구사항:
+        <a href="../issues/notification-feature.html#NOTI-3">NOTI-3 헤더 벨 아이콘 + 뱃지</a>
+      </div>
+    </div>
+    <div class="frame-desktop">
+      <div class="browser-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><div class="url">https://app.example.com/</div></div>
+      <div class="app-header">
+        <div class="app-logo">ChunoRun</div>
+        <div class="app-nav">
+          <span class="navlink">홈</span>
+          <span class="navlink">둘러보기</span>
+          <span class="navlink">마이페이지</span>
+          <div class="bell-wrap"><div class="bell-icon">🔔</div></div>
+          <div class="avatar"></div>
+        </div>
+      </div>
+      <div class="app-body">(페이지 본문 영역 — 목업 생략)</div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 2: 알림센터 드롭다운 - 미확인 알림 있음 -->
+  <!-- ============================================================ -->
+  <div class="screen">
+    <div class="screen-head"><span class="num">2</span><h2>알림센터 드롭다운 — 목록 (미확인 있음)</h2></div>
+    <div class="annotation">
+      <span class="state-tag">기본 상태 · 데이터 있음</span>
+      <b>목적.</b> 벨 아이콘 클릭 시 열리는 알림센터. 최신순 정렬, 유형(댓글/결제)·요약·발생 시각·읽음 여부를 함께 보여준다. 미확인 개수는 뱃지에 반영된다.
+      <br><b>인터랙션.</b> 항목 클릭 → 화면 6(딥링크 이동). "모두 읽음" 클릭 → 화면 5. 목록 하단 "더보기"로 페이지네이션/무한스크롤.
+      <br><b>상태 변화.</b> 이벤트 발생 시 <b>3초 이내</b> 이 목록/뱃지 숫자가 실시간으로 갱신되어야 한다(실시간 채널 필요).
+      <div class="reqs">
+        관련 요구사항:
+        <a href="../issues/notification-feature.html#NOTI-4">NOTI-4 알림 목록 UI</a>
+        <a href="../issues/notification-feature.html#NOTI-2">NOTI-2 실시간 전달 채널</a>
+        <a href="../issues/notification-feature.html#NOTI-3">NOTI-3 벨 아이콘 + 뱃지</a>
+      </div>
+    </div>
+    <div class="frame-desktop">
+      <div class="browser-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><div class="url">https://app.example.com/</div></div>
+      <div class="app-header">
+        <div class="app-logo">ChunoRun</div>
+        <div class="app-nav">
+          <span class="navlink">홈</span>
+          <span class="navlink">둘러보기</span>
+          <span class="navlink">마이페이지</span>
+          <div class="noti-panel-anchor">
+            <div class="bell-wrap"><div class="bell-icon">🔔</div><span class="badge">3</span></div>
+            <div class="noti-panel">
+              <div class="noti-panel-head">
+                <strong>알림</strong>
+                <span class="mark-all">모두 읽음</span>
+              </div>
+              <div class="noti-list">
+                <div class="noti-item unread">
+                  <span class="dot-unread"></span>
+                  <div class="noti-icon comment">💬</div>
+                  <div class="noti-body">
+                    <span class="noti-type-tag comment">댓글</span>
+                    <div class="noti-text"><strong>홍길동</strong>님이 내 글에 댓글을 남겼습니다: "정말 유익한 글이네요!"</div>
+                    <div class="noti-time">방금 전</div>
+                  </div>
+                </div>
+                <div class="noti-item unread">
+                  <span class="dot-unread"></span>
+                  <div class="noti-icon payment">💳</div>
+                  <div class="noti-body">
+                    <span class="noti-type-tag payment">결제</span>
+                    <div class="noti-text">주문 #20394 결제가 완료되었습니다. (32,000원)</div>
+                    <div class="noti-time">12분 전</div>
+                  </div>
+                </div>
+                <div class="noti-item unread">
+                  <span class="dot-unread"></span>
+                  <div class="noti-icon comment">💬</div>
+                  <div class="noti-body">
+                    <span class="noti-type-tag comment">댓글</span>
+                    <div class="noti-text"><strong>이몽룡</strong>님이 내 댓글에 답글을 남겼습니다.</div>
+                    <div class="noti-time">1시간 전</div>
+                  </div>
+                </div>
+                <div class="noti-item">
+                  <span class="dot-read"></span>
+                  <div class="noti-icon payment">💳</div>
+                  <div class="noti-body">
+                    <span class="noti-type-tag payment">결제</span>
+                    <div class="noti-text">주문 #20388 결제가 완료되었습니다. (15,000원)</div>
+                    <div class="noti-time">어제</div>
+                  </div>
+                </div>
+                <div class="noti-item">
+                  <span class="dot-read"></span>
+                  <div class="noti-icon comment">💬</div>
+                  <div class="noti-body">
+                    <span class="noti-type-tag comment">댓글</span>
+                    <div class="noti-text"><strong>성춘향</strong>님이 내 글에 댓글을 남겼습니다.</div>
+                    <div class="noti-time">2일 전</div>
+                  </div>
+                </div>
+              </div>
+              <div class="noti-panel-foot">알림 전체 보기</div>
+            </div>
+          </div>
+          <div class="avatar"></div>
+        </div>
+      </div>
+      <div class="app-body">(페이지 본문 영역 — 목업 생략)</div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 3: 알림센터 - 빈 상태 -->
+  <!-- ============================================================ -->
+  <div class="screen">
+    <div class="screen-head"><span class="num">3</span><h2>알림센터 — 빈 상태</h2></div>
+    <div class="annotation">
+      <span class="state-tag">빈 상태</span>
+      <b>목적.</b> 아직 수신된 알림이 없는 경우의 화면. 뱃지도 표시되지 않는다.
+      <div class="reqs">
+        관련 요구사항:
+        <a href="../issues/notification-feature.html#NOTI-4">NOTI-4 알림 목록 UI</a>
+      </div>
+    </div>
+    <div class="frame-desktop" style="max-width:380px">
+      <div class="noti-panel" style="position:static; box-shadow:none;">
+        <div class="noti-panel-head"><strong>알림</strong></div>
+        <div class="noti-empty">
+          <div class="icon">🔕</div>
+          아직 도착한 알림이 없습니다.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 4: 알림센터 - 로딩 상태 -->
+  <!-- ============================================================ -->
+  <div class="screen">
+    <div class="screen-head"><span class="num">4</span><h2>알림센터 — 로딩 상태</h2></div>
+    <div class="annotation">
+      <span class="state-tag">로딩 상태</span>
+      <b>목적.</b> 알림 목록을 서버에서 불러오는 동안의 스켈레톤 UI.
+      <div class="reqs">
+        관련 요구사항:
+        <a href="../issues/notification-feature.html#NOTI-4">NOTI-4 알림 목록 UI</a>
+        <a href="../issues/notification-feature.html#NOTI-1">NOTI-1 알림 데이터 모델/저장 API</a>
+      </div>
+    </div>
+    <div class="frame-desktop" style="max-width:380px">
+      <div class="noti-panel" style="position:static; box-shadow:none;">
+        <div class="noti-panel-head"><strong>알림</strong></div>
+        <div class="noti-list">
+          <div class="noti-item">
+            <div class="noti-icon" style="background:#e5e7eb"></div>
+            <div class="noti-body">
+              <div class="skeleton-line" style="width:60%; height:10px; margin-bottom:.4rem;"></div>
+              <div class="skeleton-line" style="width:90%; height:10px; margin-bottom:.4rem;"></div>
+              <div class="skeleton-line" style="width:30%; height:8px;"></div>
+            </div>
+          </div>
+          <div class="noti-item">
+            <div class="noti-icon" style="background:#e5e7eb"></div>
+            <div class="noti-body">
+              <div class="skeleton-line" style="width:60%; height:10px; margin-bottom:.4rem;"></div>
+              <div class="skeleton-line" style="width:80%; height:10px; margin-bottom:.4rem;"></div>
+              <div class="skeleton-line" style="width:30%; height:8px;"></div>
+            </div>
+          </div>
+          <div class="noti-item">
+            <div class="noti-icon" style="background:#e5e7eb"></div>
+            <div class="noti-body">
+              <div class="skeleton-line" style="width:50%; height:10px; margin-bottom:.4rem;"></div>
+              <div class="skeleton-line" style="width:70%; height:10px; margin-bottom:.4rem;"></div>
+              <div class="skeleton-line" style="width:30%; height:8px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 5: 모두 읽음 처리 - Before / After -->
+  <!-- ============================================================ -->
+  <div class="screen">
+    <div class="screen-head"><span class="num">5</span><h2>알림 읽음 처리 — 개별 / 모두 읽음 (Before → After)</h2></div>
+    <div class="annotation">
+      <span class="state-tag">인터랙션 전/후 비교</span>
+      <b>목적.</b> "모두 읽음" 클릭 시 모든 항목이 읽음 상태(강조 배경/도트 제거)로 바뀌고 뱃지 숫자가 사라지는 흐름을 보여준다. 개별 항목도 클릭 시 같은 방식으로 읽음 처리된다.
+      <br><b>상태 변화.</b> 읽음 처리 결과는 서버에 저장되어 새로고침·다른 기기/세션에서도 동일하게 유지되어야 한다.
+      <div class="reqs">
+        관련 요구사항:
+        <a href="../issues/notification-feature.html#NOTI-6">NOTI-6 개별 알림 읽음 처리</a>
+        <a href="../issues/notification-feature.html#NOTI-7">NOTI-7 모두 읽음 일괄 처리</a>
+        <a href="../issues/notification-feature.html#NOTI-8">NOTI-8 세션/기기 간 일관성</a>
+      </div>
+    </div>
+    <div class="compare">
+      <div>
+        <div class="compare-label">Before — 미확인 3건, 뱃지 표시</div>
+        <div class="noti-panel" style="position:static; box-shadow:none;">
+          <div class="noti-panel-head"><strong>알림</strong><span class="mark-all">모두 읽음</span></div>
+          <div class="noti-list">
+            <div class="noti-item unread"><span class="dot-unread"></span><div class="noti-icon comment">💬</div><div class="noti-body"><span class="noti-type-tag comment">댓글</span><div class="noti-text">홍길동님이 댓글을 남겼습니다.</div><div class="noti-time">방금 전</div></div></div>
+            <div class="noti-item unread"><span class="dot-unread"></span><div class="noti-icon payment">💳</div><div class="noti-body"><span class="noti-type-tag payment">결제</span><div class="noti-text">주문 #20394 결제 완료.</div><div class="noti-time">12분 전</div></div></div>
+            <div class="noti-item unread"><span class="dot-unread"></span><div class="noti-icon comment">💬</div><div class="noti-body"><span class="noti-type-tag comment">댓글</span><div class="noti-text">이몽룡님이 답글을 남겼습니다.</div><div class="noti-time">1시간 전</div></div></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="compare-label">After — "모두 읽음" 클릭 후, 뱃지 사라짐</div>
+        <div class="noti-panel" style="position:static; box-shadow:none;">
+          <div class="noti-panel-head"><strong>알림</strong></div>
+          <div class="noti-list">
+            <div class="noti-item"><span class="dot-read"></span><div class="noti-icon comment">💬</div><div class="noti-body"><span class="noti-type-tag comment">댓글</span><div class="noti-text">홍길동님이 댓글을 남겼습니다.</div><div class="noti-time">방금 전</div></div></div>
+            <div class="noti-item"><span class="dot-read"></span><div class="noti-icon payment">💳</div><div class="noti-body"><span class="noti-type-tag payment">결제</span><div class="noti-text">주문 #20394 결제 완료.</div><div class="noti-time">12분 전</div></div></div>
+            <div class="noti-item"><span class="dot-read"></span><div class="noti-icon comment">💬</div><div class="noti-body"><span class="noti-type-tag comment">댓글</span><div class="noti-text">이몽룡님이 답글을 남겼습니다.</div><div class="noti-time">1시간 전</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 6: 알림 클릭 -> 딥링크 이동 -->
+  <!-- ============================================================ -->
+  <div class="screen">
+    <div class="screen-head"><span class="num">6</span><h2>알림 클릭 → 딥링크 이동 (댓글 상세 / 결제 상세)</h2></div>
+    <div class="annotation">
+      <span class="state-tag">화면 전환</span>
+      <b>목적.</b> 알림센터에서 항목을 클릭했을 때 유형에 따라 서로 다른 대상 화면으로 정확히 이동하는 것을 보여준다. 댓글 알림 → 해당 댓글이 강조된 게시글 상세, 결제 알림 → 결제 상세.
+      <br><b>인터랙션.</b> 이동과 동시에 해당 알림은 읽음 처리된다.
+      <div class="reqs">
+        관련 요구사항:
+        <a href="../issues/notification-feature.html#NOTI-5">NOTI-5 알림 클릭 시 딥링크 이동</a>
+      </div>
+    </div>
+    <div class="compare">
+      <div>
+        <div class="compare-label">댓글 알림 클릭 → 게시글 상세로 이동</div>
+        <div class="frame-desktop">
+          <div class="browser-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><div class="url">https://app.example.com/posts/482#comment-991</div></div>
+          <div class="detail-page">
+            <div class="crumb">홈 &gt; 게시글 &gt; "여행 후기 모음"</div>
+            <h3 style="margin:.2rem 0 1rem;">여행 후기 모음</h3>
+            <div class="comment-card highlight">
+              <div class="author">홍길동</div>
+              <div class="body">정말 유익한 글이네요! 다음 여행 때 참고할게요.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="compare-label">결제 알림 클릭 → 결제 상세로 이동</div>
+        <div class="frame-desktop">
+          <div class="browser-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><div class="url">https://app.example.com/orders/20394</div></div>
+          <div class="detail-page">
+            <div class="crumb">홈 &gt; 주문내역 &gt; #20394</div>
+            <h3 style="margin:.2rem 0 1rem;">결제 상세</h3>
+            <div class="payment-summary">
+              <div class="row"><span>주문번호</span><span>#20394</span></div>
+              <div class="row"><span>결제수단</span><span>신용카드</span></div>
+              <div class="row"><span>상태</span><span>결제완료</span></div>
+              <div class="row"><span>결제금액</span><span>32,000원</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 7: 브라우저 웹 푸시 권한 요청 -->
+  <!-- ============================================================ -->
+  <div class="screen">
+    <div class="screen-head"><span class="num">7</span><h2>웹 푸시 권한 요청 프롬프트 <small style="font-size:.65em; font-weight:600; color:#92400e;">(차기 마일스톤)</small></h2></div>
+    <div class="deferred-banner">🕒 <strong>차기 마일스톤 (이번 범위 아님)</strong> — 웹 푸시는 2026-07-07 변경으로 이번 마일스톤 범위에서 제외되어 연기되었다. 화면은 삭제하지 않고 참고용으로 보존한다.</div>
+    <div class="annotation">
+      <span class="state-tag deferred">차기 마일스톤 · 이번 범위 아님</span>
+      <span class="state-tag">권한 요청</span>
+      <b>목적.</b> 사용자가 웹 푸시를 활성화하도록 유도하는 브라우저 네이티브 권한 요청 UI(모의). "허용"을 누르면 구독이 등록되고, "차단"을 누르면 인앱 알림만으로 운영된다.
+      <br><b>리스크.</b> 사용자가 거부/무시할 수 있으므로 인앱 알림(화면 1~5)이 항상 기본 안전망이 되어야 한다.
+      <div class="reqs">
+        관련 요구사항(백로그):
+        <a href="../issues/notification-feature.html#NOTI-10">NOTI-10 푸시 권한 요청 및 구독 등록/해제</a>
+      </div>
+    </div>
+    <div class="frame-desktop">
+      <div class="browser-bar" style="position:relative;">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span><div class="url">https://app.example.com/</div>
+        <div class="permission-prompt">
+          <div class="site">🔒 app.example.com</div>
+          <div class="q">app.example.com 이(가) 알림을 보내도록 허용하시겠습니까?</div>
+          <div class="btns">
+            <button class="btn">차단</button>
+            <button class="btn primary">허용</button>
+          </div>
+        </div>
+      </div>
+      <div class="app-header">
+        <div class="app-logo">ChunoRun</div>
+        <div class="app-nav">
+          <span class="navlink">홈</span>
+          <div class="bell-wrap"><div class="bell-icon">🔔</div></div>
+          <div class="avatar"></div>
+        </div>
+      </div>
+      <div class="app-body">(페이지 본문 영역 — 목업 생략)</div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 8: 웹 푸시 OS 알림 (앱 미실행) -->
+  <!-- ============================================================ -->
+  <div class="screen">
+    <div class="screen-head"><span class="num">8</span><h2>웹 푸시 알림 — 앱 미실행 상태 (OS 알림) <small style="font-size:.65em; font-weight:600; color:#92400e;">(차기 마일스톤)</small></h2></div>
+    <div class="deferred-banner">🕒 <strong>차기 마일스톤 (이번 범위 아님)</strong> — 웹 푸시는 2026-07-07 변경으로 이번 마일스톤 범위에서 제외되어 연기되었다. 화면은 삭제하지 않고 참고용으로 보존한다.</div>
+    <div class="annotation">
+      <span class="state-tag deferred">차기 마일스톤 · 이번 범위 아님</span>
+      <span class="state-tag">앱 미실행 · 백그라운드</span>
+      <b>목적.</b> 사용자가 앱 탭/창을 닫아둔 상태에서도 이벤트 발생 시 OS 알림 형태로 수신되는 모습을 보여준다.
+      <br><b>인터랙션.</b> 알림 클릭 시 브라우저가 열리고 관련 화면(예: 결제 상세)으로 진입한다(화면 6과 동일한 딥링크 규칙 적용).
+      <div class="reqs">
+        관련 요구사항(백로그):
+        <a href="../issues/notification-feature.html#NOTI-9">NOTI-9 웹 푸시 발송 인프라</a>
+        <a href="../issues/notification-feature.html#NOTI-11">NOTI-11 Service Worker 푸시 수신/클릭 진입</a>
+      </div>
+    </div>
+    <div class="frame-desktop">
+      <div class="os-notif-stage">
+        <div class="os-notif">
+          <div class="top"><span class="favicon"></span> app.example.com · 방금</div>
+          <div class="title">결제가 완료되었습니다</div>
+          <div class="body">주문 #20394 (32,000원) 결제가 정상 처리되었습니다. 클릭하여 상세 보기</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 9: 푸시 미지원 브라우저 안내 -->
+  <!-- ============================================================ -->
+  <div class="screen">
+    <div class="screen-head"><span class="num">9</span><h2>푸시 미지원 브라우저 안내 <small style="font-size:.65em; font-weight:600; color:#92400e;">(차기 마일스톤)</small></h2></div>
+    <div class="deferred-banner">🕒 <strong>차기 마일스톤 (이번 범위 아님)</strong> — 웹 푸시는 2026-07-07 변경으로 이번 마일스톤 범위에서 제외되어 연기되었다. 화면은 삭제하지 않고 참고용으로 보존한다.</div>
+    <div class="annotation">
+      <span class="state-tag deferred">차기 마일스톤 · 이번 범위 아님</span>
+      <span class="state-tag">에러/제약 상태 · graceful degradation</span>
+      <b>목적.</b> 사용자의 브라우저/OS가 표준 Web Push(Service Worker)를 지원하지 않을 때, 왜 푸시 설정이 비활성화되어 있는지 안내하고 인앱 알림은 계속 정상 동작함을 알려준다.
+      <div class="reqs">
+        관련 요구사항(백로그):
+        <a href="../issues/notification-feature.html#NOTI-12">NOTI-12 푸시 미지원 브라우저 안내 UX</a>
+      </div>
+    </div>
+    <div class="frame-desktop">
+      <div class="browser-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><div class="url">https://app.example.com/settings/notifications</div></div>
+      <div class="banner">
+        ⚠️ 현재 브라우저는 웹 푸시 알림을 지원하지 않습니다. 인앱 알림은 정상적으로 제공됩니다.
+        <span class="x">✕</span>
+      </div>
+      <div class="app-body" style="min-height:80px;">(설정 페이지 본문은 화면 10 참고)</div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCREEN 10: 알림 on/off 설정 페이지 -->
+  <!-- ============================================================ -->
+  <div class="screen">
+    <div class="screen-head"><span class="num">10</span><h2>알림 설정 — 유형별 on/off (인앱 채널)</h2></div>
+    <div class="annotation">
+      <span class="state-tag">설정 화면</span>
+      <b>목적.</b> 사용자가 알림 유형(댓글/결제)별로 <strong>인앱</strong> 수신 여부를 개별적으로 켜고 끌 수 있다. off로 설정한 유형은 더 이상 인앱으로 발송되지 않는다. 웹 푸시 열은 차기 마일스톤 제공 예정으로 비활성(disabled) 처리되어 있다.
+      <br><b>인터랙션.</b> 토글 클릭 시 즉시 저장(자동 저장) 되는 것으로 가정. 웹 푸시 열은 선택 불가 상태이며 "차기 제공 예정" 라벨이 표시된다.
+      <div class="reqs">
+        관련 요구사항:
+        <a href="../issues/notification-feature.html#NOTI-13">NOTI-13 유형별 on/off 설정 UI/API (인앱 채널)</a>
+        <a href="../issues/notification-feature.html#NOTI-14">NOTI-14 off 설정 유형 발송 차단 (인앱 채널)</a>
+      </div>
+    </div>
+    <div class="frame-desktop">
+      <div class="browser-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><div class="url">https://app.example.com/settings/notifications</div></div>
+      <div class="settings-wrap">
+        <div class="settings-title">알림 설정</div>
+        <div class="settings-sub">알림 유형별로 수신 채널을 설정할 수 있습니다.</div>
+        <table class="pref">
+          <tr><th>알림 유형</th><th>인앱 알림</th><th>웹 푸시</th></tr>
+          <tr>
+            <td>💬 댓글 알림</td>
+            <td><span class="toggle on"></span></td>
+            <td><span class="toggle disabled"></span><span class="pref-future-tag">차기 제공 예정</span></td>
+          </tr>
+          <tr>
+            <td>💳 결제 완료 알림</td>
+            <td><span class="toggle on"></span></td>
+            <td><span class="toggle disabled"></span><span class="pref-future-tag">차기 제공 예정</span></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    총 10개 화면 (활성 7 + 차기 마일스톤 백로그 3: 화면 7~9) · 알림 기능 기획(<a href="../plans/notification-feature.html">plan:notification-feature</a>) 기반 중간 충실도 목업 · [변경 2026-07-07] 웹 푸시 화면 연기
+  </div>
+
+</div>
+</body>
+</html>
