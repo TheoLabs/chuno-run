@@ -1,8 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class AppService {
   health(): { status: string; service: string } {
-    return { status: "ok", service: "core-api" };
+    return { status: 'ok', service: 'core-api' };
   }
 }

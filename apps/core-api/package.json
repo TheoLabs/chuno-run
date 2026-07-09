@@ -5,10 +5,17 @@
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch",
-    "start": "node dist/main.js",
-    "lint": "eslint \"src/**/*.ts\"",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/main.js",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "lint": "eslint \"{src,test}/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"(core-api: no tests yet)\" && exit 0"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.4",
@@ -18,11 +25,37 @@
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
-    "@chuno/eslint-config": "workspace:*",
     "@chuno/tsconfig": "workspace:*",
+    "@eslint/js": "^9.13.0",
     "@nestjs/cli": "^10.4.5",
+    "@nestjs/schematics": "^10.2.3",
+    "@nestjs/testing": "^10.4.4",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^29.5.13",
     "@types/node": "^22.7.4",
+    "@types/supertest": "^6.0.2",
     "eslint": "^9.13.0",
-    "typescript": "^5.6.3"
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "globals": "^15.11.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.3.3",
+    "source-map-support": "^0.5.21",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.10.0"
+  },
+  "jest": {
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": ["**/*.(t|j)s"],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
   }
 }
