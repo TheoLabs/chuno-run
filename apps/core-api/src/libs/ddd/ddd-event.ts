@@ -6,7 +6,7 @@ export enum DddEventStatus {
   FAILED = 'failed',
 }
 
-@Entity('ddd_events')
+@Entity()
 @Index(['eventStatus', 'createdAt'])
 export class DddEvent {
   @PrimaryGeneratedColumn('uuid')

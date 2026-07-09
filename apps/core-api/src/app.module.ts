@@ -3,9 +3,11 @@ import { HealthController } from './health.controller';
 import { DomainModule } from '@modules/domain.module';
 import { ContextModule } from '@libs/context';
 import { ContextMiddleware, UUIDMiddleware } from '@middlewares';
+import { DatabasesModule } from '@databases';
+import { ConfigsModule } from '@configs';
 
 @Module({
-  imports: [ContextModule, DomainModule],
+  imports: [ContextModule, DatabasesModule, ConfigsModule, DomainModule],
   controllers: [HealthController],
   providers: [],
 })

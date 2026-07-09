@@ -9,7 +9,8 @@
       "@middlewares": ["src/middlewares"],
       "@libs/*": ["src/libs/*"],
       "@databases": ["src/databases"],
-      "@configs": ["src/configs"]
+      "@configs": ["src/configs"],
+      "@types": ["src/types"]
     }
   },
   "include": ["src/**/*", "test/**/*"],
