@@ -2,7 +2,15 @@
   "extends": "@chuno/tsconfig/nestjs.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "baseUrl": "./"
+    "baseUrl": "./",
+    "strictPropertyInitialization": false,
+    "paths": {
+      "@modules/*": ["src/modules/*"],
+      "@middlewares": ["src/middlewares"],
+      "@libs/*": ["src/libs/*"],
+      "@databases": ["src/databases"],
+      "@configs": ["src/configs"]
+    }
   },
   "include": ["src/**/*", "test/**/*"],
   "exclude": ["node_modules", "dist"]
