@@ -1,0 +1,9 @@
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    # UI 코드에서 노이즈가 큰 const 스타일 린트는 비활성화한다.
+    # (정확성·안전성 린트는 flutter_lints 기본값 그대로 유지)
+    prefer_const_constructors: false
+    prefer_const_constructors_in_immutables: false
+    prefer_const_literals_to_create_immutables: false

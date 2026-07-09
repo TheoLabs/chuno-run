@@ -1,0 +1,10 @@
+{
+  // 저장 시 자동 hot reload (VS Code Dart/Flutter 확장으로 앱을 실행한 경우)
+  "dart.flutterHotReloadOnSave": "all",
+  "dart.hotReloadOnSave": "all",
+  "editor.formatOnSave": true,
+  "[dart]": {
+    "editor.defaultFormatter": "Dart-Code.dart-code",
+    "editor.formatOnSave": true
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "chuno",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "app:run": "pnpm --filter @chuno/mobile run",
+    "app:watch": "pnpm --filter @chuno/mobile dev",
+    "api:dev": "pnpm --filter @chuno/core-api dev"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.6.3"
+  }
+}

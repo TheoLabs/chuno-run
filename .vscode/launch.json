@@ -1,0 +1,11 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "chuno mobile (flutter)",
+      "cwd": "apps/mobile",
+      "request": "launch",
+      "type": "dart"
+    }
+  ]
+}
