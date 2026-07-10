@@ -5,11 +5,18 @@ import { ContextModule } from '@libs/context';
 import { ContextMiddleware, UUIDMiddleware } from '@middlewares';
 import { DatabasesModule } from '@databases';
 import { ConfigsModule } from '@configs';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { RequestLoggerInterceptor } from '@libs/interceptors';
 
 @Module({
   imports: [ContextModule, DatabasesModule, ConfigsModule, DomainModule],
   controllers: [HealthController],
-  providers: [],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RequestLoggerInterceptor,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

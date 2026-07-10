@@ -1,13 +1,16 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { logger } from '@libs/logger';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { logger });
   const port = process.env.PORT ?? 3000;
-  await app.listen(port);
 
   app.enableShutdownHooks();
-  console.log(`core-api listening on http://localhost:${port}.`);
+
+  await app.listen(port);
+
+  logger.log(`core-api listening on http://localhost:${port}.`);
 }
 
 bootstrap();
