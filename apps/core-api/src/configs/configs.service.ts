@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type DataSourceOptions } from 'typeorm';
+import { JwtConfig } from './configuration';
 
 @Injectable()
 export class ConfigsService {
@@ -16,5 +17,9 @@ export class ConfigsService {
 
   get mysql() {
     return this.configService.get<DataSourceOptions>('mysql')!;
+  }
+
+  get jwt() {
+    return this.configService.get<JwtConfig>('jwt')!;
   }
 }

@@ -7,9 +7,10 @@ import { DatabasesModule } from '@databases';
 import { ConfigsModule } from '@configs';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { RequestLoggerInterceptor } from '@libs/interceptors';
+import { JwtTokenModule } from '@libs/jwt';
 
 @Module({
-  imports: [ContextModule, DatabasesModule, ConfigsModule, DomainModule],
+  imports: [ContextModule, DatabasesModule, ConfigsModule, JwtTokenModule, DomainModule],
   controllers: [HealthController],
   providers: [
     {

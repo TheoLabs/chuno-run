@@ -10,7 +10,8 @@
       "@libs/*": ["src/libs/*"],
       "@databases": ["src/databases"],
       "@configs": ["src/configs"],
-      "@types": ["src/types"]
+      "@types": ["src/types"],
+      "@guards": ["src/guards"]
     }
   },
   "include": ["src/**/*", "test/**/*"],
