@@ -81,4 +81,14 @@ export class User extends DddAggregate {
       UserConsent.create({ agreementId: consent.agreementId, isAgreed: consent.isAgreed })
     );
   }
+
+  update(args: { nickname?: string }) {
+    const changed = this.stripUnchanged(args);
+
+    if (!changed) {
+      return;
+    }
+
+    Object.assign(this, changed);
+  }
 }

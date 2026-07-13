@@ -22,8 +22,9 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final TextEditingController _nick = TextEditingController(text: MockData.myNick);
+  final TextEditingController _nick = TextEditingController();
   bool _editing = false;
+  bool _saving = false;
   bool _notif = true;
   bool _reconsentDone = false;
   bool _hasPhoto = false; // 프로필 사진 설정 여부 (목업)
@@ -35,6 +36,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _nick.text = _currentNick;
+    _refresh();
+  }
+
+  /// 화면 진입 시 GET /auth/me로 세션(닉네임/연결계정 등)을 최신화한다.
+  /// 미로그인(테스트·비정상 진입)이면 조용히 건너뛴다.
+  Future<void> _refresh() async {
+    if (!AuthService.instance.isLoggedIn) return;
+    try {
+      await AuthService.instance.me();
+      if (!mounted) return;
+      setState(() {
+        if (!_editing) _nick.text = _currentNick;
+      });
+    } catch (_) {
+      // 새로고침 실패는 무시 — 기존 세션 값으로 계속 표시한다.
+    }
+  }
+
+  /// 표시용 닉네임 — 세션 값이 비어 있으면 목업으로 대체한다.
+  String get _currentNick {
+    final n = AuthService.instance.user?.nickname;
+    return (n != null && n.isNotEmpty) ? n : MockData.myNick;
+  }
+
+  /// 연결된 소셜 계정 표시명.
+  String get _providerLabel {
+    final p = (AuthService.instance.user?.provider ?? '').toLowerCase();
+    return switch (p) {
+      'kakao' => '카카오',
+      'google' => '구글',
+      'apple' => 'Apple',
+      _ => '카카오',
+    };
+  }
+
+  @override
   void dispose() {
     _nick.dispose();
     super.dispose();
@@ -44,9 +84,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(m)));
 
-  void _toggleEdit() {
-    setState(() => _editing = !_editing);
-    if (!_editing) _snack('닉네임 저장됨');
+  void _startEdit() {
+    _nick.text = _currentNick;
+    setState(() => _editing = true);
+  }
+
+  /// 편집 저장 — 닉네임이 바뀐 경우에만 PUT /users/me 를 호출한다(변경 없으면 편집만 닫음).
+  Future<void> _saveNick() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final changed = await AuthService.instance.changeNickname(_nick.text);
+      if (!mounted) return;
+      setState(() {
+        _editing = false;
+        _saving = false;
+        _nick.text = _currentNick;
+      });
+      if (changed) _snack('닉네임 저장됨');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      _snack('닉네임 저장에 실패했어요');
+    }
   }
 
   Future<void> _reconsent() async {
@@ -177,7 +237,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               _row(
                 left: Text('연결 계정', style: context.text.bodyLarge),
-                right: Text('카카오',
+                right: Text(_providerLabel,
                     style: context.text.bodyMedium?.copyWith(color: context.palette.muted)),
               ),
               _row(
@@ -266,11 +326,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: InkWell(
-                          onTap: _toggleEdit,
+                          onTap: _saving ? null : _saveNick,
                           customBorder: const CircleBorder(),
                           child: Padding(
                             padding: const EdgeInsets.all(4),
-                            child: Icon(Icons.check, size: 18, color: context.scheme.primary),
+                            child: _saving
+                                ? SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: context.scheme.primary,
+                                    ),
+                                  )
+                                : Icon(Icons.check, size: 18, color: context.scheme.primary),
                           ),
                         ),
                       ),
@@ -280,12 +349,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               : Row(
                   children: [
                     const Expanded(child: SizedBox()),
-                    Text(_nick.text, style: context.text.titleLarge),
+                    Text(_currentNick, style: context.text.titleLarge),
                     Expanded(
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: InkWell(
-                          onTap: _toggleEdit,
+                          onTap: _startEdit,
                           customBorder: const CircleBorder(),
                           child: Padding(
                             padding: const EdgeInsets.all(4),
@@ -298,7 +367,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
         ),
         const SizedBox(height: 2),
-        Text('카카오 로그인 · 2026년 6월 가입',
+        // 연결 계정은 세션 값(provider), 가입일은 대응 API가 없어 목업 유지.
+        Text('$_providerLabel 로그인 · 2026년 6월 가입',
             style: context.text.labelMedium?.copyWith(color: context.palette.muted)),
       ],
     );
@@ -314,7 +384,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Icon(Icons.person, size: 46, color: context.palette.muted),
       );
     }
-    return AvatarCircle(MockData.myNick, size: 84);
+    return AvatarCircle(_currentNick, size: 84);
   }
 
   void _changePhoto() {

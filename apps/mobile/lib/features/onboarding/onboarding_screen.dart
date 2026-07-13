@@ -1,20 +1,29 @@
 import 'package:flutter/material.dart';
 
+import '../../core/api/agreement_api.dart';
+import '../../core/api/api_client.dart';
 import '../../core/auth/auth_service.dart';
 import '../../design_system/app_dimens.dart';
 import '../../design_system/app_palette.dart';
 
-class _Agreement {
-  _Agreement(this.title, this.required, this.body);
-  final String title;
-  final bool required;
-  final String body;
+/// 화면 상태로 쓰는 약관 항목 — 서버 약관 + 사용자 동의/펼침 상태.
+class _AgreementState {
+  _AgreementState(this.agreement);
+  final Agreement agreement;
   bool agreed = false;
   bool expanded = false;
+
+  int get id => agreement.id;
+  String get title => agreement.title;
+  String get body => agreement.content;
+  bool get required => agreement.required;
 }
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  const OnboardingScreen({super.key, this.agreementApi});
+
+  /// 테스트에서 가짜 구현을 주입할 수 있다. 기본값은 HTTP 구현.
+  final AgreementApi? agreementApi;
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -22,23 +31,25 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final TextEditingController _nick = TextEditingController();
+  late final AgreementApi _agreementApi;
+
+  bool _loading = true;
+  String? _loadError;
   bool _submitting = false;
+  List<_AgreementState> _items = const [];
 
-  final List<_Agreement> _items = [
-    _Agreement('서비스 이용약관', true, '서비스 이용에 관한 기본 약관입니다. (목업 본문)'),
-    _Agreement('개인정보 수집·이용 동의', true, '닉네임·소셜 식별자·위치·경주 기록을 수집·이용합니다. (목업)'),
-    _Agreement('위치기반서비스 이용약관', true, '경주 중 실시간 위치·거리 수집에 대한 동의입니다. (목업)'),
-    _Agreement('마케팅 정보 수신', false, '이벤트·소식 알림 수신 동의(선택). (목업)'),
-  ];
-
-  bool get _allAgreed => _items.every((e) => e.agreed);
+  bool get _allAgreed =>
+      _items.isNotEmpty && _items.every((e) => e.agreed);
   bool get _requiredOk => _items.where((e) => e.required).every((e) => e.agreed);
-  bool get _canStart => _requiredOk && _nick.text.trim().isNotEmpty;
+  bool get _canStart =>
+      !_loading && _loadError == null && _requiredOk && _nick.text.trim().isNotEmpty;
 
   @override
   void initState() {
     super.initState();
+    _agreementApi = widget.agreementApi ?? HttpAgreementApi();
     _nick.addListener(() => setState(() {}));
+    _loadAgreements();
   }
 
   @override
@@ -47,14 +58,51 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
+  Future<void> _loadAgreements() async {
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
+    try {
+      final token = AuthService.instance.accessToken;
+      if (token == null) {
+        throw StateError('로그인 후에 약관을 불러올 수 있습니다.');
+      }
+      final agreements = await _agreementApi.activeAgreements(accessToken: token);
+      if (!mounted) return;
+      setState(() {
+        _items = agreements.map(_AgreementState.new).toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = '$e';
+      });
+    }
+  }
+
   Future<void> _finish() async {
     if (!_canStart || _submitting) return;
     setState(() => _submitting = true);
     try {
-      // 온보딩 완료 → 닉네임 저장 + status onboarding→active 전이 후 홈 진입.
-      await AuthService.instance.completeOnboarding(_nick.text.trim());
+      // 표시된 모든 약관에 대해 동의 여부를 전송한다.
+      final consents = _items
+          .map((e) => Consent(agreementId: e.id, isAgreed: e.agreed))
+          .toList();
+      // 온보딩 완료 → 서버에 저장 후 GET /auth/me로 세션(status/nickname) 갱신.
+      await AuthService.instance.completeOnboarding(_nick.text.trim(), consents);
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed('/main');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      final msg = e.statusCode == 400
+          ? '필수 약관에 모두 동의해야 시작할 수 있어요.'
+          : '저장에 실패했어요. 잠시 후 다시 시도해 주세요.';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
@@ -98,9 +146,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     decoration: const InputDecoration(hintText: '예: 달리는너구리'),
                   ),
                   const SizedBox(height: AppDimens.sm),
-                  _allAgreeCard(context),
-                  const SizedBox(height: AppDimens.md),
-                  for (final a in _items) _agreementTile(context, a),
+                  ..._buildAgreements(context),
                 ],
               ),
             ),
@@ -109,7 +155,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (!_canStart)
+                  if (!_canStart && _loadError == null && !_loading)
                     Padding(
                       padding: const EdgeInsets.only(bottom: AppDimens.sm),
                       child: Text(
@@ -124,7 +170,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
                           )
                         : const Text('시작하기'),
                   ),
@@ -133,6 +180,55 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  List<Widget> _buildAgreements(BuildContext context) {
+    if (_loading) {
+      return const [
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: AppDimens.xxl),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ];
+    }
+    if (_loadError != null) {
+      return [_errorCard(context)];
+    }
+    return [
+      _allAgreeCard(context),
+      const SizedBox(height: AppDimens.md),
+      for (final a in _items) _agreementTile(context, a),
+    ];
+  }
+
+  Widget _errorCard(BuildContext context) {
+    final p = context.palette;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppDimens.lg),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+        border: Border.all(color: p.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('약관을 불러오지 못했어요.', style: context.text.titleMedium),
+          const SizedBox(height: AppDimens.xs),
+          Text('네트워크와 서버 상태를 확인해 주세요.',
+              style: context.text.labelMedium?.copyWith(color: p.muted)),
+          const SizedBox(height: AppDimens.md),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton(
+              onPressed: _loading ? null : _loadAgreements,
+              child: const Text('다시 시도'),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -159,7 +255,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   Text('약관 전체 동의', style: context.text.titleMedium),
                   const SizedBox(height: 2),
                   Text('필수·선택 약관에 모두 동의합니다.',
-                      style: context.text.labelMedium?.copyWith(color: context.palette.muted)),
+                      style: context.text.labelMedium
+                          ?.copyWith(color: context.palette.muted)),
                 ],
               ),
             ),
@@ -169,7 +266,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  Widget _agreementTile(BuildContext context, _Agreement a) {
+  Widget _agreementTile(BuildContext context, _AgreementState a) {
     final p = context.palette;
     return Column(
       children: [

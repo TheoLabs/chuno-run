@@ -48,6 +48,8 @@ description: >-
 - baseUrl은 `AppConfig`(Android 에뮬 `10.0.2.2:3000`, 그 외 `localhost:3000`,
   `--dart-define=API_BASE_URL`로 override). 로컬 http라 Android cleartext·iOS ATS 설정이 이미 있다.
 - 응답 봉투는 `{ data }`, 리스트는 `{ data: { items, total } }` (백엔드 CONVENTIONS와 일치).
+- **수정(PUT) API는 변경된 값만 body에 담는다.** 기존 값과 동일한 필드는 보내지 않고, 원본 대비
+  실제로 바뀐 필드만 diff로 전송한다(부분 수정). 아무것도 안 바뀌었으면 요청을 보내지 않는다.
 
 ## 작업 원칙
 

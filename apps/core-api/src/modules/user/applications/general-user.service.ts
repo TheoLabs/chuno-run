@@ -56,4 +56,11 @@ export class GeneralUserService extends DddService {
     user.onboard(nickname, consents);
     await this.userRepository.save([user]);
   }
+
+  @Transactional()
+  async update({ user, nickname }: { user: User; nickname?: string }) {
+    user.update({ nickname });
+
+    await this.userRepository.save([user]);
+  }
 }

@@ -5,9 +5,10 @@ import { ContextModule } from '@libs/context';
 import { ContextMiddleware, UUIDMiddleware } from '@middlewares';
 import { DatabasesModule } from '@databases';
 import { ConfigsModule } from '@configs';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { RequestLoggerInterceptor } from '@libs/interceptors';
 import { JwtTokenModule } from '@libs/jwt';
+import { ExceptionFilter } from '@libs/filters';
 
 @Module({
   imports: [ContextModule, DatabasesModule, ConfigsModule, JwtTokenModule, DomainModule],
@@ -16,6 +17,10 @@ import { JwtTokenModule } from '@libs/jwt';
     {
       provide: APP_INTERCEPTOR,
       useClass: RequestLoggerInterceptor,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: ExceptionFilter,
     },
   ],
 })
