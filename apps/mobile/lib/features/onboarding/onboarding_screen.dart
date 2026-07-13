@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/auth/auth_service.dart';
 import '../../design_system/app_dimens.dart';
 import '../../design_system/app_palette.dart';
 
@@ -21,6 +22,7 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final TextEditingController _nick = TextEditingController();
+  bool _submitting = false;
 
   final List<_Agreement> _items = [
     _Agreement('서비스 이용약관', true, '서비스 이용에 관한 기본 약관입니다. (목업 본문)'),
@@ -43,6 +45,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void dispose() {
     _nick.dispose();
     super.dispose();
+  }
+
+  Future<void> _finish() async {
+    if (!_canStart || _submitting) return;
+    setState(() => _submitting = true);
+    try {
+      // 온보딩 완료 → 닉네임 저장 + status onboarding→active 전이 후 홈 진입.
+      await AuthService.instance.completeOnboarding(_nick.text.trim());
+      if (!mounted) return;
+      Navigator.of(context).pushReplacementNamed('/main');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('저장에 실패했어요. 잠시 후 다시 시도해 주세요.\n$e')),
+      );
+    }
   }
 
   void _toggleAll() {
@@ -100,10 +119,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                     ),
                   FilledButton(
-                    onPressed: _canStart
-                        ? () => Navigator.of(context).pushReplacementNamed('/main')
-                        : null,
-                    child: const Text('시작하기'),
+                    onPressed: (_canStart && !_submitting) ? _finish : null,
+                    child: _submitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Text('시작하기'),
                   ),
                 ],
               ),

@@ -1,0 +1,124 @@
+import { ConfigsService } from '@configs';
+import { User, UserProvider, UserStatus } from '@modules/user/domain/user.entity';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectEntityManager } from '@nestjs/typeorm';
+import { TokenService } from '@libs/jwt';
+import { EntityManager } from 'typeorm';
+
+export interface DevLoginInput {
+  /** 소셜 제공자 (기본 kakao). 실제 소셜 인증 없이 식별자만 흉내낸다. */
+  provider?: UserProvider;
+  /** 제공자 사용자 식별자 (기본 `dev-<provider>`). 같은 값이면 같은 계정으로 재로그인된다. */
+  providerUserId?: string;
+  /** 닉네임 (선택). 넘기면 계정에 반영한다. */
+  nickname?: string;
+  /** true면 온보딩을 건너뛴 active 계정으로 만든다. 기본 false(첫 로그인=onboarding). */
+  activate?: boolean;
+}
+
+export interface AuthResult {
+  accessToken: string;
+  user: {
+    id: number;
+    provider: UserProvider;
+    providerUserId: string;
+    status: UserStatus;
+    nickname: string;
+    profileImageUrl: string;
+  };
+}
+
+/**
+ * 로컬 개발용 임시 인증 서비스.
+ *
+ * 소셜 로그인(카카오/구글/애플)을 로컬에 붙이기 어려운 동안, provider+providerUserId만으로
+ * User를 찾거나 생성하고 액세스 토큰을 발급해 프론트/앱 개발을 진행할 수 있게 한다.
+ * 운영 환경에서는 절대 노출되면 안 되므로 production에서는 차단한다.
+ */
+@Injectable()
+export class AuthService {
+  constructor(
+    @InjectEntityManager() private readonly entityManager: EntityManager,
+    private readonly tokenService: TokenService,
+    private readonly configsService: ConfigsService
+  ) {}
+
+  /** 임시 로그인: 계정을 찾거나(providerKey) 없으면 생성하고 액세스 토큰을 발급한다. */
+  async devLogin(input: DevLoginInput): Promise<AuthResult> {
+    this.assertNotProduction();
+
+    const provider = this.resolveProvider(input.provider);
+    const providerUserId = input.providerUserId?.trim() || `dev-${provider}`;
+
+    const userRepository = this.entityManager.getRepository(User);
+
+    let user = await userRepository.findOne({ where: { provider, providerUserId } });
+
+    if (!user) {
+      // 첫 로그인 → onboarding 상태로 계정 생성 (도메인 흐름과 동일).
+      user = User.create({
+        provider,
+        providerUserId,
+        nickname: input.nickname?.trim() ?? '',
+        profileImageUrl: '',
+      });
+    }
+
+    // dev 편의: 닉네임/활성화 상태를 넘긴 대로 반영한다.
+    if (input.nickname !== undefined) {
+      user.nickname = input.nickname.trim();
+    }
+    if (input.activate) {
+      user.status = UserStatus.ACTIVE;
+    }
+
+    user = await userRepository.save(user);
+
+    return this.toResult(user);
+  }
+
+  /** 이미 존재하는 userId로 액세스 토큰만 재발급한다. (로컬 디버깅용) */
+  async issueTokenByUserId(userId: number): Promise<AuthResult> {
+    this.assertNotProduction();
+
+    const user = await this.entityManager.getRepository(User).findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new NotFoundException(`userId=${userId} 사용자를 찾을 수 없습니다.`);
+    }
+
+    return this.toResult(user);
+  }
+
+  private resolveProvider(provider?: UserProvider): UserProvider {
+    if (provider === undefined) {
+      return UserProvider.KAKAO;
+    }
+
+    if (!Object.values(UserProvider).includes(provider)) {
+      throw new BadRequestException(`provider는 ${Object.values(UserProvider).join(' | ')} 중 하나여야 합니다.`);
+    }
+
+    return provider;
+  }
+
+  private assertNotProduction() {
+    if (this.configsService.isProduction()) {
+      throw new ForbiddenException('로컬 개발 환경에서만 사용할 수 있는 임시 API입니다.');
+    }
+  }
+
+  private toResult(user: User): AuthResult {
+    return {
+      accessToken: this.tokenService.signAccessToken({ userId: user.id }),
+      user: {
+        id: user.id,
+        provider: user.provider,
+        providerUserId: user.providerUserId,
+        status: user.status,
+        nickname: user.nickname,
+        profileImageUrl: user.profileImageUrl,
+      },
+    };
+  }
+}

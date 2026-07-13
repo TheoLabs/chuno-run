@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../design_system/app_dimens.dart';
 import '../../design_system/app_palette.dart';
 import '../../design_system/widgets.dart';
+import '../../core/auth/auth_service.dart';
 import '../../mock/mock_data.dart';
 
 class _RecentRace {
@@ -111,6 +112,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
     if (ok == true && mounted) {
+      // 세션만 해제 — 계정 상태(onboarding/active)는 유지되어 재로그인 시 분기가 재현된다.
+      AuthService.instance.logout();
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
     }
   }

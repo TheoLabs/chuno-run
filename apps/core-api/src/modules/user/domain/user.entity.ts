@@ -10,6 +10,13 @@ export enum UserProvider {
   APPLE = 'apple',
 }
 
+export enum UserStatus {
+  ONBOARDING = 'onboarding',
+  ACTIVE = 'active',
+  EXITED = 'exited',
+  SUSPENDED = 'suspended',
+}
+
 type Ctor = {
   provider: UserProvider;
   providerUserId: string;
@@ -28,6 +35,9 @@ export class User extends DddAggregate {
 
   @Column({ comment: '제공자가 부여한 사용자 식별자' })
   providerUserId: string;
+
+  @Column({ type: 'enum', enum: UserStatus })
+  status: UserStatus;
 
   @Column({ comment: '표시 이름' })
   nickname: string;
@@ -51,6 +61,7 @@ export class User extends DddAggregate {
       this.profileImageUrl = args.profileImageUrl;
       this.joinOn = today('YYYY-MM-DD HH:mm:ss');
       this.userConsents = [];
+      this.status = UserStatus.ONBOARDING;
     }
   }
 

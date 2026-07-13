@@ -2,7 +2,7 @@ import { today } from '@libs/date';
 import { DddAggregate } from '@libs/ddd';
 import { BadRequestException } from '@nestjs/common';
 import { CalendarDate } from '@types';
-import { Column, Entity, Index, PrimaryGeneratedColumn, Unique } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn, Unique } from 'typeorm';
 
 export enum AgreementType {
   SERVICE = 'service',

@@ -1,10 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:mobile/core/auth/auth_service.dart';
 import 'package:mobile/design_system/app_theme.dart';
 import 'package:mobile/features/shell/main_shell.dart';
 import 'package:mobile/features/waiting_room/waiting_room_screen.dart';
 import 'package:mobile/main.dart';
+
+/// 네트워크 없이 dev 로그인 분기를 검증하기 위한 가짜 AuthApi.
+/// provider별로 계정 상태를 인메모리로 흉내낸다 (서버의 find-or-create + activate와 동일한 규칙).
+class _FakeAuthApi implements AuthApi {
+  final Map<String, UserStatus> _accounts = {};
+
+  @override
+  Future<AuthResult> devLogin({
+    required String provider,
+    String? nickname,
+    bool activate = false,
+  }) async {
+    final status = _accounts.putIfAbsent(provider, () => UserStatus.onboarding);
+    final next = activate ? UserStatus.active : status;
+    _accounts[provider] = next;
+    return AuthResult(
+      accessToken: 'fake-token-$provider',
+      user: AuthUser(id: 1, provider: provider, status: next, nickname: nickname ?? ''),
+    );
+  }
+}
 
 void main() {
   testWidgets('앱이 로그인 화면으로 시작한다 (카카오·구글·애플)', (WidgetTester tester) async {
@@ -47,5 +69,23 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('빈 자리'), findsWidgets);
+  });
+
+  test('로그인 후 User.status 분기 — 첫 로그인 onboarding, 완료 후 재로그인 active', () async {
+    final auth = AuthService(api: _FakeAuthApi());
+    const provider = 'kakao';
+
+    // 첫 로그인 → 계정이 onboarding 상태로 생성 (시나리오 #1/#5)
+    expect(await auth.login(provider), UserStatus.onboarding);
+    // 온보딩 미완료 상태로 재로그인 → 여전히 onboarding (중복 계정 없이 이어서 진행, #5)
+    expect(await auth.login(provider), UserStatus.onboarding);
+
+    // 온보딩 완료 → active 전이 (#2)
+    await auth.completeOnboarding('러너');
+    expect(auth.status, UserStatus.active);
+
+    // 로그아웃 후 재로그인 → active (온보딩 스킵, #4)
+    auth.logout();
+    expect(await auth.login(provider), UserStatus.active);
   });
 }
