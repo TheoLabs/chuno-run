@@ -32,31 +32,44 @@ class AuthResult {
 
 /// core-api 인증 API 추상화 — 테스트에서 가짜 구현으로 교체할 수 있다.
 abstract class AuthApi {
-  Future<AuthResult> devLogin({
-    required String provider,
-    String? nickname,
-    bool activate,
+  /// 로그인 — provider로 계정을 찾거나 생성하고 토큰을 발급받는다.
+  Future<AuthResult> devLogin({required String provider});
+
+  /// 온보딩 완료 — 닉네임 설정 + status onboarding→active. 로그인 토큰이 필요하다.
+  Future<AuthResult> completeOnboarding({
+    required String accessToken,
+    required String nickname,
   });
 }
 
-/// 로컬 개발용 dev 로그인 API 구현 (POST /auth/dev/login).
+/// 로컬 개발용 dev 인증 API 구현 (POST /auth/dev/*).
 class HttpAuthApi implements AuthApi {
   HttpAuthApi({ApiClient? client}) : _client = client ?? ApiClient();
   final ApiClient _client;
 
   @override
-  Future<AuthResult> devLogin({
-    required String provider,
-    String? nickname,
-    bool activate = false,
-  }) async {
+  Future<AuthResult> devLogin({required String provider}) async {
     final json = await _client.post('/auth/dev/login', body: {
       'provider': provider,
       'providerUserId': 'dev-$provider', // provider당 고정 → 같은 계정으로 재로그인
-      if (nickname != null) 'nickname': nickname,
-      'activate': activate,
     });
+    return _parseAuthResult(json, fallbackProvider: provider);
+  }
 
+  @override
+  Future<AuthResult> completeOnboarding({
+    required String accessToken,
+    required String nickname,
+  }) async {
+    final json = await _client.post(
+      '/auth/dev/onboarding',
+      token: accessToken,
+      body: {'nickname': nickname},
+    );
+    return _parseAuthResult(json);
+  }
+
+  AuthResult _parseAuthResult(Map<String, dynamic> json, {String? fallbackProvider}) {
     final data = json['data'] as Map<String, dynamic>;
     final user = data['user'] as Map<String, dynamic>;
 
@@ -64,7 +77,7 @@ class HttpAuthApi implements AuthApi {
       accessToken: data['accessToken'] as String,
       user: AuthUser(
         id: user['id'] as int,
-        provider: (user['provider'] as String?) ?? provider,
+        provider: (user['provider'] as String?) ?? fallbackProvider ?? '',
         status: userStatusFromString(user['status'] as String?),
         nickname: (user['nickname'] as String?) ?? '',
       ),
@@ -96,10 +109,13 @@ class AuthService {
     return result.user.status;
   }
 
-  /// 온보딩 완료 — 닉네임을 저장하고 status를 active로 전이시킨다.
+  /// 온보딩 완료 — 로그인 토큰으로 닉네임을 저장하고 status를 active로 전이시킨다.
   Future<void> completeOnboarding(String nickname) async {
-    final provider = user?.provider ?? 'kakao';
-    final result = await _api.devLogin(provider: provider, nickname: nickname, activate: true);
+    final token = accessToken;
+    if (token == null) {
+      throw StateError('로그인 후에 온보딩을 완료할 수 있습니다.');
+    }
+    final result = await _api.completeOnboarding(accessToken: token, nickname: nickname);
     _apply(result);
   }
 

@@ -1,7 +1,13 @@
+import { today } from '@libs/date';
 import { DddBaseAggregate } from '@libs/ddd';
 import { User } from '@modules/user/domain/user.entity';
 import { CalendarDate } from '@types';
-import { Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
+
+type Ctor = {
+  agreementId: number;
+  isAgreed: boolean;
+};
 
 @Entity()
 @Unique('unique_user_consent_user_id_agreement_id', ['userId', 'agreementId'])
@@ -24,4 +30,18 @@ export class UserConsent extends DddBaseAggregate {
   @ManyToOne(() => User)
   @JoinColumn({ name: 'userId' })
   user: User;
+
+  private constructor(args: Ctor) {
+    super();
+
+    if (args) {
+      this.agreementId = args.agreementId;
+      this.isAgreed = args.isAgreed;
+      this.consentedOn = today('YYYY-MM-DD HH:mm:ss');
+    }
+  }
+
+  static create(args: Ctor) {
+    return new UserConsent(args);
+  }
 }

@@ -122,10 +122,15 @@ GET /rooms?sort=startOn&order=desc
 
 대상 접두사를 파일·클래스명에 반영한다. (모듈 구조는 `presentation`(컨트롤러) / `applications`(서비스) / `domain`(엔티티).)
 
-| 대상 | 파일 | 클래스 |
+| 계층 · 대상 | 파일 | 클래스 |
 | --- | --- | --- |
-| 일반 사용자 | `general-<resource>.controller.ts` | `General<Resource>Controller` |
-| 관리자 | `admin-<resource>.controller.ts` | `Admin<Resource>Controller` |
+| 컨트롤러 · 일반 | `general-<resource>.controller.ts` | `General<Resource>Controller` |
+| 컨트롤러 · 관리자 | `admin-<resource>.controller.ts` | `Admin<Resource>Controller` |
+| 서비스 · 일반 | `general-<domain>.service.ts` | `General<Domain>Service` |
+| 서비스 · 관리자 | `admin-<domain>.service.ts` | `Admin<Domain>Service` |
+| 리포지토리 (공유) | `<domain>.repository.ts` | `<Domain>Repository` |
+
+> 라우트 프리픽스만 `/admins/*`(복수)이고, 파일·클래스 접두사는 `admin-`/`Admin`(단수)로 통일한다.
 
 ## 12. 예시 — Room
 
@@ -149,7 +154,7 @@ GET /rooms?sort=startOn&order=desc
 ```
 modules/<domain>/
   presentation/     # 컨트롤러 (general-*/admin-*.controller.ts)
-  applications/     # 유스케이스 서비스 — DddService 상속
+  applications/     # 유스케이스 서비스 (general-*/admin-*.service.ts) — DddService 상속
   domain/           # 엔티티(*.entity.ts) + 복잡한 도메인 로직
   infrastructure/   # <domain>.repository.ts (딱 하나) — DddRepository<T> 상속
 ```
@@ -169,10 +174,14 @@ modules/<domain>/
 ### applications (서비스)
 - **`DddService`를 상속**한다. 유스케이스 오케스트레이션(리포지토리 호출, 트랜잭션 경계)을 담당한다.
 - 도메인 규칙 자체는 여기 두지 않는다(→ domain).
-- **대상별 가시성은 서비스에서 서버가 고정한다.** 하나의 도메인 서비스에 대상별 메서드를 둔다
-  (예: `listForUser` / `listForAdmin`). 일반 사용자용 메서드는 제약을 하드코딩한다
+- **대상별로 서비스를 분리한다** (컨트롤러와 동일): `general-<domain>.service.ts`(`General<Domain>Service`),
+  `admin-<domain>.service.ts`(`Admin<Domain>Service`). 대상마다 유스케이스·권한이 다르므로 분리하고,
+  나중에 MSA로 떼어내기도 쉽다.
+- **대상별 가시성은 서비스에서 서버가 고정한다.** 일반 서비스는 제약을 하드코딩한다
   (예: Agreement는 일반 사용자에게 `statuses: [active]`만 조회). **클라이언트가 준 민감 필터를
-  그대로 신뢰해 레포지토리에 흘려보내지 않는다.** 레포지토리는 도메인 단위로 공유하며 모든 필터를 허용(내부용).
+  그대로 신뢰해 레포지토리에 흘려보내지 않는다.**
+- **레포지토리는 도메인 단위로 공유**한다(대상별로 나누지 않음). 모든 필터를 허용하는 내부 표면이며,
+  노출 제어는 서비스/DTO에서 한다.
 
 ### domain
 - 엔티티(`*.entity.ts`): **private 생성자 + `static create()` 팩토리**, 컬럼 `comment`, enum 동일 파일.

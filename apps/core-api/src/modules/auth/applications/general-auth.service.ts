@@ -10,10 +10,11 @@ export interface DevLoginInput {
   provider?: UserProvider;
   /** 제공자 사용자 식별자 (기본 `dev-<provider>`). 같은 값이면 같은 계정으로 재로그인된다. */
   providerUserId?: string;
-  /** 닉네임 (선택). 넘기면 계정에 반영한다. */
-  nickname?: string;
-  /** true면 온보딩을 건너뛴 active 계정으로 만든다. 기본 false(첫 로그인=onboarding). */
-  activate?: boolean;
+}
+
+export interface CompleteOnboardingInput {
+  /** 온보딩에서 설정할 닉네임 (필수). */
+  nickname: string;
 }
 
 export interface AuthResult {
@@ -23,8 +24,6 @@ export interface AuthResult {
     provider: UserProvider;
     providerUserId: string;
     status: UserStatus;
-    nickname: string;
-    profileImageUrl: string;
   };
 }
 
@@ -36,7 +35,7 @@ export interface AuthResult {
  * 운영 환경에서는 절대 노출되면 안 되므로 production에서는 차단한다.
  */
 @Injectable()
-export class AuthService {
+export class GeneralAuthService {
   constructor(
     @InjectEntityManager() private readonly entityManager: EntityManager,
     private readonly tokenService: TokenService,
@@ -55,26 +54,43 @@ export class AuthService {
     let user = await userRepository.findOne({ where: { provider, providerUserId } });
 
     if (!user) {
-      // 첫 로그인 → onboarding 상태로 계정 생성 (도메인 흐름과 동일).
-      user = User.create({
-        provider,
-        providerUserId,
-        nickname: input.nickname?.trim() ?? '',
-        profileImageUrl: '',
-      });
+      // 첫 로그인 → onboarding 상태로 계정 생성. 닉네임 설정·active 전이는 온보딩(POST /auth/dev/onboarding)에서 처리.
+      user = await userRepository.save(User.create({ provider, providerUserId }));
     }
-
-    // dev 편의: 닉네임/활성화 상태를 넘긴 대로 반영한다.
-    if (input.nickname !== undefined) {
-      user.nickname = input.nickname.trim();
-    }
-    if (input.activate) {
-      user.status = UserStatus.ACTIVE;
-    }
-
-    user = await userRepository.save(user);
 
     return this.toResult(user);
+  }
+
+  /**
+   * 온보딩 완료: 닉네임을 설정하고 status를 onboarding→active로 전이한다.
+   * dev 환경에서도 온보딩을 실제로 수행할 수 있게 하는 임시 경로다.
+   * (실제 온보딩의 필수 약관 동의(UserConsent) 기록은 온보딩 기능 구현 시 추가한다.)
+   */
+  async completeOnboarding(userId: number, input: CompleteOnboardingInput): Promise<AuthResult> {
+    this.assertNotProduction();
+
+    const nickname = input.nickname?.trim();
+    if (!nickname) {
+      throw new BadRequestException('닉네임을 입력해 주세요.');
+    }
+
+    const userRepository = this.entityManager.getRepository(User);
+    const user = await userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new NotFoundException(`userId=${userId} 사용자를 찾을 수 없습니다.`);
+    }
+
+    if (user.status !== UserStatus.ONBOARDING) {
+      throw new BadRequestException('이미 온보딩을 완료한 사용자입니다.');
+    }
+
+    user.nickname = nickname;
+    user.status = UserStatus.ACTIVE;
+
+    const saved = await userRepository.save(user);
+
+    return this.toResult(saved);
   }
 
   /** 이미 존재하는 userId로 액세스 토큰만 재발급한다. (로컬 디버깅용) */
@@ -116,8 +132,6 @@ export class AuthService {
         provider: user.provider,
         providerUserId: user.providerUserId,
         status: user.status,
-        nickname: user.nickname,
-        profileImageUrl: user.profileImageUrl,
       },
     };
   }

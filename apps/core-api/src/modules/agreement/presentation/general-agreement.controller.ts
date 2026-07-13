@@ -1,12 +1,12 @@
 import { UserGuard } from '@guards';
 import { Controller, Get, Param, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
 import { GeneralAgreementQueryDto } from './dto';
-import { AgreementService } from '../applications/agreement.service';
+import { GeneralAgreementService } from '../applications/general-agreement.service';
 
 @Controller('agreements')
 @UseGuards(UserGuard)
 export class GeneralAgreementController {
-  constructor(private readonly generalAgreementService: AgreementService) {}
+  constructor(private readonly generalAgreementService: GeneralAgreementService) {}
 
   @Get()
   async list(@Query() query: GeneralAgreementQueryDto) {

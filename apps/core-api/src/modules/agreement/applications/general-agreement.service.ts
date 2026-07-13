@@ -6,17 +6,17 @@ import { PaginationOptions } from '@libs/utils';
 import { GeneralAgreementResponseDto } from '../presentation/dto/agreement-response.dto';
 
 @Injectable()
-export class AgreementService extends DddService {
+export class GeneralAgreementService extends DddService {
   constructor(private readonly agreementRepository: AgreementRepository) {
     super();
   }
 
-  async list({ types }: { types?: AgreementType[] }, options?: PaginationOptions) {
+  async list(
+    { types, statuses }: { types?: AgreementType[]; statuses?: AgreementStatus[] },
+    options?: PaginationOptions
+  ) {
     const [agreements, total] = await Promise.all([
-      this.agreementRepository.find(
-        { types, statuses: [AgreementStatus.ACTIVE, AgreementStatus.ARCHIVED] },
-        { options }
-      ),
+      this.agreementRepository.find({ types, statuses }, { options }),
       this.agreementRepository.count({ types, statuses: [AgreementStatus.ACTIVE, AgreementStatus.ARCHIVED] }),
     ]);
 
@@ -28,7 +28,7 @@ export class AgreementService extends DddService {
 
   async retrieve({ id }: { id: number }) {
     const [agreement] = await this.agreementRepository.find({
-      id,
+      ids: [id],
       statuses: [AgreementStatus.ACTIVE, AgreementStatus.ARCHIVED],
     });
 

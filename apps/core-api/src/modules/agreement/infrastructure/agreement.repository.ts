@@ -10,7 +10,7 @@ export class AgreementRepository extends DddRepository<Agreement> {
 
   async find(
     conditions: {
-      id?: number;
+      ids?: number[];
       types?: AgreementType[];
       version?: string;
       required?: boolean;
@@ -21,7 +21,7 @@ export class AgreementRepository extends DddRepository<Agreement> {
   ) {
     return this.entityManager.find(this.entityClass, {
       where: stripUndefined({
-        id: conditions.id,
+        id: checkInValue(conditions.ids),
         type: checkInValue(conditions.types),
         version: conditions.version,
         required: conditions.required,
@@ -33,7 +33,7 @@ export class AgreementRepository extends DddRepository<Agreement> {
   }
 
   async count(conditions: {
-    id?: number;
+    ids?: number[];
     types?: AgreementType[];
     version?: string;
     required?: boolean;
@@ -42,7 +42,7 @@ export class AgreementRepository extends DddRepository<Agreement> {
   }) {
     return this.entityManager.count(this.entityClass, {
       where: stripUndefined({
-        id: conditions.id,
+        id: checkInValue(conditions.ids),
         type: checkInValue(conditions.types),
         version: conditions.version,
         required: conditions.required,

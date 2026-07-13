@@ -13,17 +13,25 @@ class _FakeAuthApi implements AuthApi {
   final Map<String, UserStatus> _accounts = {};
 
   @override
-  Future<AuthResult> devLogin({
-    required String provider,
-    String? nickname,
-    bool activate = false,
-  }) async {
+  Future<AuthResult> devLogin({required String provider}) async {
     final status = _accounts.putIfAbsent(provider, () => UserStatus.onboarding);
-    final next = activate ? UserStatus.active : status;
-    _accounts[provider] = next;
     return AuthResult(
       accessToken: 'fake-token-$provider',
-      user: AuthUser(id: 1, provider: provider, status: next, nickname: nickname ?? ''),
+      user: AuthUser(id: 1, provider: provider, status: status, nickname: ''),
+    );
+  }
+
+  @override
+  Future<AuthResult> completeOnboarding({
+    required String accessToken,
+    required String nickname,
+  }) async {
+    // 토큰의 provider로 계정을 찾아 active로 전이 (서버 온보딩 완료와 동일 규칙).
+    final provider = accessToken.replaceFirst('fake-token-', '');
+    _accounts[provider] = UserStatus.active;
+    return AuthResult(
+      accessToken: accessToken,
+      user: AuthUser(id: 1, provider: provider, status: UserStatus.active, nickname: nickname),
     );
   }
 }

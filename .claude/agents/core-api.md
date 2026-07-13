@@ -44,9 +44,10 @@ description: >-
     `// 1. Destructure body, params, query` → `// 2. Get context` → `// 3. Get result` → `// 4. Send response`.
     엔티티 직접 반환 금지 — `presentation/dto/*.response.ts` Response DTO로 `toInstance(Dto)` 변환해 응답.
     대상별 요청 DTO 분리(민감 필터 `statuses/types`는 관리자 DTO에만).
-  - `applications/*.service.ts` — 유스케이스. **`DddService` 상속**. 트랜잭션 경계·리포지토리 호출 담당.
-    대상별 가시성은 서비스에서 고정(하나의 서비스 + `listForUser`/`listForAdmin` 메서드, 일반은
-    `statuses:[active]` 등 서버 하드코딩). 클라이언트가 준 민감 필터를 그대로 레포지토리에 넘기지 않는다.
+  - `applications/{general,admin}-<domain>.service.ts` — 유스케이스. **`DddService` 상속**.
+    **대상별로 서비스 분리**(`General<Domain>Service`/`Admin<Domain>Service`, 컨트롤러와 동일, MSA 분리 대비).
+    대상별 가시성은 서비스에서 고정(일반은 `statuses:[active]` 등 서버 하드코딩). 클라이언트가 준
+    민감 필터를 그대로 레포지토리에 넘기지 않는다. **리포지토리는 도메인 단위로 공유**(내부 표면).
   - `domain/*.entity.ts` — 엔티티. 애그리게이트 루트 `DddAggregate`, owned child `DddBaseAggregate`,
     **private 생성자 + `static create()` 팩토리**. **복잡한 도메인 로직(도메인 이벤트·도메인 서비스·
     스펙/밸리데이터)·추상화는 domain 폴더에 둔다.** 도메인 규칙 위반은 도메인에서 Nest 예외 throw.
