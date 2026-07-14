@@ -1,16 +1,21 @@
 import { DddService } from '@libs/ddd';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { RoomRepository } from '../infrastructure/room.repository';
 import { Transactional } from '@libs/decorators';
 import { User } from '@modules/user/domain/user.entity';
 import { CalendarDate } from '@types';
 import { Room, RoomStatus } from '../domain/room.entity';
 import { PaginationOptions } from '@libs/utils';
-import { GeneralRoomListResponseDto } from '../presentation/dto';
+import { GeneralRoomListResponseDto, GeneralRoomRetrieveResponseDto } from '../presentation/dto';
+import { UserRepository } from '@modules/user/infrastructure/user.repository';
+import { keyBy } from 'lodash';
 
 @Injectable()
 export class GeneralRoomService extends DddService {
-  constructor(private readonly roomRepository: RoomRepository) {
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly roomRepository: RoomRepository
+  ) {
     super();
   }
 
@@ -94,10 +99,56 @@ export class GeneralRoomService extends DddService {
     return {
       items: rooms.map((room) =>
         room.toInstance(GeneralRoomListResponseDto, {
+          isJoined: room.participants.some((p) => p.userId === user.id),
           currentParticipantCount: room.participants.length,
         })
       ),
       total,
     };
+  }
+
+  async retrieve({ user, id }: { user: User; id: number }) {
+    const [room] = await this.roomRepository.find({ id }, { relations: { participants: true } });
+
+    if (!room) {
+      throw new NotFoundException('존재하지 않는 방입니다.');
+    }
+
+    const users = await this.userRepository.find({ ids: room.participants.map((p) => p.userId) });
+    const userById = keyBy(users, 'id');
+
+    return room.toInstance(GeneralRoomRetrieveResponseDto, {
+      participants: room.participants.map((p) => ({ ...p, user: userById[p.userId] })),
+    });
+  }
+
+  @Transactional()
+  async join({ user, id }: { user: User; id: number }) {
+    const [room] = await this.roomRepository.find({ id }, { relations: { participants: true } });
+
+    if (!room) {
+      throw new NotFoundException('존재하지 않는 방입니다.');
+    }
+
+    room.join(user.id);
+
+    await this.roomRepository.save([room]);
+
+    return { id: room.id };
+  }
+
+  @Transactional()
+  async exit({ user, id }: { user: User; id: number }) {
+    const [room] = await this.roomRepository.find({ id }, { relations: { participants: true } });
+
+    if (!room) {
+      throw new NotFoundException('존재하지 않는 방입니다.');
+    }
+
+    room.exit(user.id);
+
+    await this.roomRepository.save([room]);
+
+    return { id: room.id };
   }
 }

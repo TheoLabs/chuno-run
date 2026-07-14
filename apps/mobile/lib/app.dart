@@ -28,7 +28,10 @@ class ChunoApp extends StatelessWidget {
         '/onboarding': (_) => const OnboardingScreen(),
         '/main': (_) => const MainShell(),
         '/room-create': (_) => const RoomCreateScreen(),
-        '/waiting-room': (_) => const WaitingRoomScreen(),
+        '/waiting-room': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments;
+          return WaitingRoomScreen(roomId: args is int ? args : null);
+        },
         '/race': (_) => const RaceScreen(),
         '/result': (_) => const ResultScreen(),
         '/location-denied': (_) => const LocationDeniedScreen(),

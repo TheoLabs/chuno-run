@@ -8,12 +8,12 @@ export class UserRepository extends DddRepository<User> {
   entityClass = User;
 
   async find(
-    conditions: { id?: number; providerUserId?: string; statuses?: UserStatus[] },
+    conditions: { ids?: number[]; providerUserId?: string; statuses?: UserStatus[] },
     options?: TypeormRelationOptions<User>
   ) {
     return this.entityManager.find(this.entityClass, {
       where: stripUndefined({
-        id: conditions.id,
+        id: checkInValue(conditions.ids),
         providerUserId: conditions.providerUserId,
         status: checkInValue(conditions.statuses),
       }),
@@ -21,10 +21,10 @@ export class UserRepository extends DddRepository<User> {
     });
   }
 
-  async count(conditions: { id?: number; providerUserId?: string; statuses?: UserStatus[] }) {
+  async count(conditions: { ids?: number[]; providerUserId?: string; statuses?: UserStatus[] }) {
     return this.entityManager.count(this.entityClass, {
       where: stripUndefined({
-        id: conditions.id,
+        id: checkInValue(conditions.ids),
         providerUserId: conditions.providerUserId,
         status: checkInValue(conditions.statuses),
       }),

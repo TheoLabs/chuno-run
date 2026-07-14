@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:mobile/core/api/room_api.dart';
 import 'package:mobile/core/auth/auth_service.dart';
 import 'package:mobile/design_system/app_theme.dart';
 import 'package:mobile/features/shell/main_shell.dart';
@@ -72,6 +73,48 @@ class _FakeAuthApi implements AuthApi {
   }
 }
 
+/// 네트워크 없이 대기실을 검증하기 위한 가짜 RoomApi.
+class _FakeRoomApi implements RoomApi {
+  @override
+  Future<List<RoomListItem>> list({required String accessToken}) async => const [];
+
+  @override
+  Future<void> create({
+    required String accessToken,
+    required String title,
+    required int goalDistanceMeter,
+    required int goalLimitMinutes,
+    required String startOn,
+    required int capacity,
+  }) async {}
+
+  @override
+  Future<void> join({required String accessToken, required int id}) async {}
+
+  @override
+  Future<void> exit({required String accessToken, required int id}) async {}
+
+  @override
+  Future<RoomDetail> retrieve({required String accessToken, required int id}) async {
+    return RoomDetail(
+      id: id,
+      hostUserId: 1,
+      title: '아침 3km 대결',
+      goalDistanceMeter: 3000,
+      goalLimitMinutes: 30,
+      startOn: DateTime.now().add(const Duration(minutes: 10)),
+      capacity: 6,
+      status: 'recruiting',
+      participants: [
+        RoomParticipant(
+            id: 1, roomId: id, status: 'joined', currentDistanceMeter: 0, userId: 1, nickname: '나'),
+        RoomParticipant(
+            id: 2, roomId: id, status: 'joined', currentDistanceMeter: 0, userId: 2, nickname: '러너_김'),
+      ],
+    );
+  }
+}
+
 void main() {
   testWidgets('앱이 로그인 화면으로 시작한다 (카카오·구글·애플)', (WidgetTester tester) async {
     await tester.pumpWidget(const ChunoApp());
@@ -100,19 +143,64 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('대기실이 오버플로우 없이 렌더된다 (참가자 그리드)', (WidgetTester tester) async {
+  testWidgets('대기실이 서버 데이터로 오버플로우 없이 렌더된다 (참가자 그리드)', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
+    // 대기실은 세션 토큰으로 상세를 로드한다 — 가짜 세션을 주입.
+    final prevAuth = AuthService.instance;
+    addTearDown(() => AuthService.instance = prevAuth);
+    AuthService.instance = AuthService(api: _FakeAuthApi())
+      ..accessToken = 'fake'
+      ..user = const AuthUser(id: 1, provider: 'kakao', status: UserStatus.active, nickname: '나');
+
     await tester.pumpWidget(
-      MaterialApp(theme: AppTheme.dark, home: const WaitingRoomScreen()),
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: WaitingRoomScreen(roomId: 1, roomApi: _FakeRoomApi()),
+      ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump(); // retrieve Future 해소
+    await tester.pump(const Duration(milliseconds: 50));
 
     expect(tester.takeException(), isNull);
-    expect(find.text('빈 자리'), findsWidgets);
+    expect(find.text('아침 3km 대결'), findsOneWidget);
+    expect(find.text('빈 자리'), findsWidgets); // 정원(6) - 참가자(2) = 빈 자리 4
+    expect(find.text('방장'), findsOneWidget); // hostUserId(1) == 참가자 '나'
+
+    // 주기 카운트다운 타이머 정리 — 위젯을 폐기해 dispose에서 취소되게 한다.
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('대기실 하단 액션 — 방장은 경주 시작, 비방장은 방 나가기', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prevAuth = AuthService.instance;
+    addTearDown(() => AuthService.instance = prevAuth);
+    // 로그인 유저 id(2) != hostUserId(1) → 비방장.
+    AuthService.instance = AuthService(api: _FakeAuthApi())
+      ..accessToken = 'fake'
+      ..user = const AuthUser(id: 2, provider: 'kakao', status: UserStatus.active, nickname: '러너_김');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: WaitingRoomScreen(roomId: 1, roomApi: _FakeRoomApi()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('방 나가기'), findsOneWidget); // 비방장 참가자
+    expect(find.text('경주 시작'), findsNothing); // 참가자에겐 숨김
+
+    await tester.pumpWidget(const SizedBox());
   });
 
   test('로그인 후 User.status 분기 — 첫 로그인 onboarding, 완료 후 재로그인 active', () async {

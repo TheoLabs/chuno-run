@@ -25,10 +25,12 @@
 - **이슈 착수 시**: 해당 이슈를 `update_issue_status(issueId, "in_progress")`로 표시.
 - **완료 조건 체크박스 동기화**: 이슈 본문의 "완료 조건" 항목을 실제로 끝낼 때마다
   `get_issue`로 본문을 읽어 해당 `- [ ]`를 `- [x]`로 바꿔 `update_issue(issueId, body=<수정본>)`로
-  저장한다. **본문의 다른 부분은 건드리지 마라.** (한 번에 재조정하려면 `/ib-progress`.)
+  저장한다. **본문의 다른 부분은 건드리지 마라.** 대시보드에서 사람이 체크하는 것과 같은
+  편집이다. (한 번에 재조정하려면 `/ib-progress`.)
 - **이슈 완료 시**: 완료 조건을 모두 `- [x]`로 맞추고 `update_issue_status(issueId, "done")`.
 - **작업 중 새 할 일 발견 시**: `create_issue`로 등록해 보드에 남긴다.
 - **기획에 결정/변경이 생기면**: `append_plan_note`로 기획서에 진행 메모를 덧붙인다.
 
 아직 기획이 없다면 `/ib-generate <아이디어>`(또는 `/ib-plan`)로 시작한다.
-MCP 툴이 보이지 않으면 issue-board 서버가 떠 있는지, 첫 사용 시 MCP 승인을 했는지 확인하라.
+MCP 툴이 보이지 않으면 이 저장소에 `.mcp.json`이 있는지, issue-board 서버가 떠 있는지,
+첫 사용 시 MCP 승인을 했는지 확인하라.

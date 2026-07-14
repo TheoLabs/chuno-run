@@ -43,6 +43,8 @@ class RoomSummary {
     required this.capacity,
     required this.status,
     this.id,
+    this.isMine = false,
+    this.isJoined = false,
     this.liveElapsed,
     this.startTimeLabel,
     this.startsInLabel,
@@ -50,6 +52,12 @@ class RoomSummary {
 
   /// 서버 방 id. 목업 데이터에서는 null.
   final int? id;
+
+  /// 로그인 사용자가 방장(생성자)인 방이면 true — 카드에 '내 방' 배지를 띄운다.
+  final bool isMine;
+
+  /// 로그인 사용자가 이 방에 참가한 상태면 true — 미참여는 '참가', 참여중은 '입장'.
+  final bool isJoined;
   final String title;
   final int goalMeter;
   final int limitMinutes;

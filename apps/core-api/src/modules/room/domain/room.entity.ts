@@ -98,7 +98,7 @@ export class Room extends DddAggregate {
     return room;
   }
 
-  private join(userId: number) {
+  join(userId: number) {
     if (this.status !== RoomStatus.RECRUITING) {
       throw new BadRequestException('현재 모집중인 방에만 참가가 가능합니다.', {
         description: '현재 모집중인 방에만 가능합니다.',
@@ -114,5 +114,40 @@ export class Room extends DddAggregate {
     }
 
     this.participants.push(Participant.create({ userId }));
+  }
+
+  exit(userId: number) {
+    if (this.hostUserId === userId) {
+      this.cancel(userId);
+      return;
+    }
+
+    if (this.status !== RoomStatus.RECRUITING) {
+      throw new BadRequestException('현재 모집중인 방에만 나갈 수 있습니다.', {
+        description: '현재 모집중인 방에만 나갈 수 있습니다.',
+      });
+    }
+
+    if (!this.participants.some((participant) => participant.userId === userId)) {
+      return;
+    }
+
+    this.participants = this.participants.filter((participant) => participant.userId !== userId);
+  }
+
+  cancel(userId: number) {
+    if (this.hostUserId !== userId) {
+      throw new BadRequestException('방장만 방을 취소할 수 있습니다.', {
+        description: '방장만 방을 취소할 수 있습니다.',
+      });
+    }
+
+    if (this.status !== RoomStatus.RECRUITING) {
+      throw new BadRequestException('현재 모집중인 방에만 취소할 수 있습니다.', {
+        description: '현재 모집중인 방에만 취소할 수 있습니다.',
+      });
+    }
+
+    this.status = RoomStatus.CANCELLED;
   }
 }

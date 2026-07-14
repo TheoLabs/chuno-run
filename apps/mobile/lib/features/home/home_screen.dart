@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/api/api_client.dart';
 import '../../core/api/room_api.dart';
 import '../../core/auth/auth_service.dart';
 import '../../design_system/app_dimens.dart';
@@ -64,6 +65,9 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _loading = true;
   bool _failed = false;
 
+  /// 참가 요청 진행 중인 방 id (중복 탭 방지). null이면 진행 중 아님.
+  int? _joiningRoomId;
+
   @override
   void initState() {
     super.initState();
@@ -95,13 +99,60 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// '참가' 버튼 → POST /rooms/:id/join 후 대기실로 진입한다.
+  ///
+  /// '이미 참가한 유저'는 오류가 아니라 정상 흐름으로 보고 그대로 대기실로 넘긴다.
+  /// 그 외 서버 오류(모집 마감·정원 초과 등)는 서버 메시지를 스낵바로 노출하고 목록을 갱신한다.
+  Future<void> _joinAndEnter(RoomSummary room) async {
+    final id = room.id;
+    final token = AuthService.instance.accessToken;
+    if (id == null || token == null) return;
+    if (_joiningRoomId != null) return; // 이미 참가 진행 중
+    setState(() => _joiningRoomId = id);
+    try {
+      await _roomApi.join(accessToken: token, id: id);
+      if (!mounted) return;
+      await Navigator.of(context).pushNamed('/waiting-room', arguments: id);
+      if (mounted) _load();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (e.message.contains('이미 참가')) {
+        // 이미 참가한 유저 — 오류로 취급하지 않고 그대로 대기실로 진입한다.
+        await Navigator.of(context).pushNamed('/waiting-room', arguments: id);
+        if (mounted) _load();
+      } else {
+        // 모집 마감·정원 초과 등 — 서버 메시지를 그대로 노출하고 목록을 갱신한다.
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        _load();
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('참가하지 못했어요')));
+    } finally {
+      if (mounted) setState(() => _joiningRoomId = null);
+    }
+  }
+
+  /// '입장' 버튼 → 이미 참가한 방이므로 join 호출 없이 바로 대기실로 진입한다.
+  /// 복귀 시 목록을 갱신해 참가 인원·상태 변화를 반영한다.
+  Future<void> _enterRoom(RoomSummary room) async {
+    final id = room.id;
+    if (id == null) return;
+    await Navigator.of(context).pushNamed('/waiting-room', arguments: id);
+    if (mounted) _load();
+  }
+
   /// 서버 항목 → 홈 카드 뷰모델. 시작 시각/경과 라벨은 여기(표현 계층)에서 파생한다.
   RoomSummary _summaryOf(RoomListItem r) {
     final status = roomStatusFromString(r.status);
     final isLive = status == RoomStatus.live;
     final isJoinable = status == RoomStatus.recruiting || status == RoomStatus.ready;
+    final myId = AuthService.instance.user?.id;
     return RoomSummary(
       id: r.id,
+      isMine: myId != null && r.hostUserId == myId,
+      isJoined: r.isJoined,
       title: r.title,
       goalMeter: r.goalDistanceMeter,
       limitMinutes: r.goalLimitMinutes,
@@ -279,9 +330,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   for (final room in visible) ...[
                     _RoomCard(
                       room: room,
-                      onAction: () => Navigator.of(context).pushNamed(
-                        room.status == RoomStatus.live ? '/race' : '/waiting-room',
-                      ),
+                      onAction: () => room.status == RoomStatus.live
+                          ? Navigator.of(context).pushNamed('/race')
+                          : _joinAndEnter(room),
+                      onEnter: () => _enterRoom(room),
                     ),
                     const SizedBox(height: AppDimens.md),
                   ],
@@ -432,10 +484,15 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _RoomCard extends StatelessWidget {
-  const _RoomCard({required this.room, required this.onAction});
+  const _RoomCard({required this.room, required this.onAction, required this.onEnter});
 
   final RoomSummary room;
+
+  /// 미참여 방의 '참가'(join 후 대기실) 콜백. live 방에서는 '관전'(/race)로도 쓰인다.
   final VoidCallback onAction;
+
+  /// 이미 참가한 방의 '입장'(join 없이 대기실) 콜백.
+  final VoidCallback onEnter;
 
   @override
   Widget build(BuildContext context) {
@@ -448,7 +505,28 @@ class _RoomCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Flexible(child: Text(room.title, style: context.text.titleMedium)),
+                Expanded(
+                  child: Row(
+                    children: [
+                      if (room.isMine) ...[
+                        const _MyRoomBadge(),
+                        const SizedBox(width: AppDimens.xs),
+                      ] else if (room.isJoined) ...[
+                        const _JoinedBadge(),
+                        const SizedBox(width: AppDimens.xs),
+                      ],
+                      Flexible(
+                        child: Text(
+                          room.title,
+                          style: context.text.titleMedium,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppDimens.sm),
                 _statusPill(),
               ],
             ),
@@ -535,14 +613,84 @@ class _RoomCard extends StatelessWidget {
       visualDensity: VisualDensity.compact,
       textStyle: textStyle,
     );
-    switch (room.status) {
-      case RoomStatus.recruiting:
-        return FilledButton(onPressed: onAction, style: filled, child: const Text('참가'));
-      case RoomStatus.live:
-        return OutlinedButton(onPressed: onAction, style: outlined, child: const Text('관전'));
-      default:
-        return OutlinedButton(onPressed: null, style: outlined, child: const Text('마감'));
+    // live 방은 참여 여부와 무관하게 '관전'이 우선.
+    if (room.status == RoomStatus.live) {
+      return OutlinedButton(onPressed: onAction, style: outlined, child: const Text('관전'));
     }
+    // 이미 참가한 방(방장 포함) — join 없이 바로 '입장'.
+    if (room.isJoined) {
+      return FilledButton(onPressed: onEnter, style: filled, child: const Text('입장'));
+    }
+    // 미참여 모집중 — join 후 대기실.
+    if (room.status == RoomStatus.recruiting) {
+      return FilledButton(onPressed: onAction, style: filled, child: const Text('참가'));
+    }
+    // 그 외(ready 미참여 등) — 비활성 '마감'.
+    return OutlinedButton(onPressed: null, style: outlined, child: const Text('마감'));
+  }
+}
+
+/// 내가 만든 방(방장) 표시 배지. 상태 배지와 구분되도록 primary 아웃라인 톤을 쓴다.
+class _MyRoomBadge extends StatelessWidget {
+  const _MyRoomBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.scheme.primary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+        border: Border.all(color: c.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.person_outline, size: 12, color: c),
+          const SizedBox(width: 3),
+          Text(
+            '내 방',
+            style: context.text.labelSmall?.copyWith(
+              color: c,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 내가 참가한(방장 아님) 방 표시 배지. '내 방'(primary 코랄)과 구분되도록 success 톤을 쓴다.
+class _JoinedBadge extends StatelessWidget {
+  const _JoinedBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.palette.success;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+        border: Border.all(color: c.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.check_circle_outline, size: 12, color: c),
+          const SizedBox(width: 3),
+          Text(
+            '참여중',
+            style: context.text.labelSmall?.copyWith(
+              color: c,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
