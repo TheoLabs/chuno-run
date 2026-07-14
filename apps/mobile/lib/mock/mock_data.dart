@@ -2,7 +2,16 @@ import '../design_system/app_colors.dart';
 import 'package:flutter/material.dart';
 
 /// 방(경주) 상태 — Room.status 도메인과 동일.
-enum RoomStatus { recruiting, ready, live, finished, canceled }
+enum RoomStatus { recruiting, ready, live, finished, cancelled }
+
+/// 서버 status 문자열 → [RoomStatus]. 알 수 없는 값은 recruiting으로 처리한다.
+RoomStatus roomStatusFromString(String? value) => switch (value) {
+      'ready' => RoomStatus.ready,
+      'live' => RoomStatus.live,
+      'finished' => RoomStatus.finished,
+      'cancelled' => RoomStatus.cancelled,
+      _ => RoomStatus.recruiting,
+    };
 
 extension RoomStatusX on RoomStatus {
   String get label => switch (this) {
@@ -10,7 +19,7 @@ extension RoomStatusX on RoomStatus {
         RoomStatus.ready => '모집 마감',
         RoomStatus.live => '진행중',
         RoomStatus.finished => '종료',
-        RoomStatus.canceled => '취소됨',
+        RoomStatus.cancelled => '취소됨',
       };
 
   Color get color => switch (this) {
@@ -18,7 +27,7 @@ extension RoomStatusX on RoomStatus {
         RoomStatus.ready => AppColors.gold,
         RoomStatus.live => AppColors.success,
         RoomStatus.finished => AppColors.dMuted,
-        RoomStatus.canceled => AppColors.danger,
+        RoomStatus.cancelled => AppColors.danger,
       };
 }
 
@@ -33,11 +42,14 @@ class RoomSummary {
     required this.joined,
     required this.capacity,
     required this.status,
+    this.id,
     this.liveElapsed,
     this.startTimeLabel,
     this.startsInLabel,
   });
 
+  /// 서버 방 id. 목업 데이터에서는 null.
+  final int? id;
   final String title;
   final int goalMeter;
   final int limitMinutes;

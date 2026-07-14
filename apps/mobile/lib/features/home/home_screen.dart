@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/api/room_api.dart';
+import '../../core/auth/auth_service.dart';
 import '../../design_system/app_dimens.dart';
 import '../../design_system/app_palette.dart';
 import '../../design_system/widgets.dart';
@@ -15,6 +17,32 @@ extension on _Filter {
       };
 }
 
+String _two(int n) => n.toString().padLeft(2, '0');
+
+/// 예: 오전 7:00 / 오후 8:30 (12시간제).
+String _clockLabel(DateTime dt) {
+  final ampm = dt.hour < 12 ? '오전' : '오후';
+  final h12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+  return '$ampm $h12:${_two(dt.minute)}';
+}
+
+/// 시작까지 남은 시간. 1시간 초과면 '시간(+분)', 이내면 '분', 지났으면 '곧 시작'.
+String _startsInLabel(DateTime start) {
+  final diff = start.difference(DateTime.now());
+  if (diff.inSeconds <= 0) return '곧 시작';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}분 후';
+  final h = diff.inHours;
+  final m = diff.inMinutes % 60;
+  return m == 0 ? '$h시간 후' : '$h시간 $m분 후';
+}
+
+/// 진행중 방의 시작 이후 경과 시간 (MM:SS).
+String _elapsedLabel(DateTime start) {
+  final s = DateTime.now().difference(start).inSeconds;
+  final clamped = s < 0 ? 0 : s;
+  return '${_two(clamped ~/ 60)}:${_two(clamped % 60)}';
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -23,12 +51,68 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final RoomApi _roomApi = HttpRoomApi();
+
   _Filter _filter = _Filter.all;
 
   static const double _distMax = 12; // km
   static const double _limitMax = 120; // 분
   RangeValues _dist = const RangeValues(0, _distMax);
   RangeValues _limit = const RangeValues(0, _limitMax);
+
+  List<RoomSummary> _rooms = const [];
+  bool _loading = true;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  /// GET /rooms 로 참여 가능한 방 목록을 불러와 카드용 [RoomSummary]로 변환한다.
+  Future<void> _load() async {
+    final token = AuthService.instance.accessToken;
+    if (token == null) {
+      // 미로그인(테스트·비정상 진입) — 빈 목록으로 둔다.
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+    if (mounted) setState(() => _failed = false);
+    try {
+      final items = await _roomApi.list(accessToken: token);
+      if (!mounted) return;
+      setState(() {
+        _rooms = items.map(_summaryOf).toList();
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _failed = true;
+      });
+    }
+  }
+
+  /// 서버 항목 → 홈 카드 뷰모델. 시작 시각/경과 라벨은 여기(표현 계층)에서 파생한다.
+  RoomSummary _summaryOf(RoomListItem r) {
+    final status = roomStatusFromString(r.status);
+    final isLive = status == RoomStatus.live;
+    final isJoinable = status == RoomStatus.recruiting || status == RoomStatus.ready;
+    return RoomSummary(
+      id: r.id,
+      title: r.title,
+      goalMeter: r.goalDistanceMeter,
+      limitMinutes: r.goalLimitMinutes,
+      joined: r.currentParticipantCount,
+      capacity: r.capacity,
+      status: status,
+      liveElapsed: isLive ? _elapsedLabel(r.startOn) : null,
+      startTimeLabel: isLive ? null : _clockLabel(r.startOn),
+      startsInLabel: isJoinable ? _startsInLabel(r.startOn) : null,
+    );
+  }
 
   bool get _filterActive =>
       _filter != _Filter.all ||
@@ -37,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _limit.start > 0 ||
       _limit.end < _limitMax;
 
-  List<RoomSummary> get _visible => MockData.rooms.where((r) {
+  List<RoomSummary> get _visible => _rooms.where((r) {
         final statusOk = switch (_filter) {
           _Filter.all => true,
           _Filter.recruiting => r.status == RoomStatus.recruiting,
@@ -107,6 +191,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final visible = _visible;
+    final nick = AuthService.instance.user?.nickname;
+    final displayNick = (nick != null && nick.isNotEmpty) ? nick : MockData.myNick;
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -118,71 +204,85 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Stack(
         children: [
-          ListView(
-            padding: const EdgeInsets.fromLTRB(
-                AppDimens.screenPad, AppDimens.sm, AppDimens.screenPad, 96),
-            children: [
-              Text.rich(
-                TextSpan(
-                  text: '안녕하세요, ',
-                  style: context.text.bodyLarge?.copyWith(color: context.palette.muted),
-                  children: [
-                    TextSpan(
-                      text: MockData.myNick,
-                      style: context.text.bodyLarge?.copyWith(
-                        color: context.scheme.onSurface,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const TextSpan(text: ' 님 👋'),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppDimens.lg),
-              SectionLabel(
-                '경쟁 방',
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('${visible.length}개',
-                        style: context.text.labelMedium?.copyWith(color: context.palette.muted)),
-                    const SizedBox(width: AppDimens.sm),
-                    InkWell(
-                      borderRadius: BorderRadius.circular(AppDimens.radius),
-                      onTap: _openFilter,
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Badge(
-                          isLabelVisible: _filterActive,
-                          smallSize: 7,
-                          backgroundColor: context.scheme.primary,
-                          child: Icon(Icons.tune, size: 20, color: context.scheme.onSurface),
+          RefreshIndicator(
+            onRefresh: _load,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(
+                  AppDimens.screenPad, AppDimens.sm, AppDimens.screenPad, 96),
+              children: [
+                Text.rich(
+                  TextSpan(
+                    text: '안녕하세요, ',
+                    style: context.text.bodyLarge?.copyWith(color: context.palette.muted),
+                    children: [
+                      TextSpan(
+                        text: displayNick,
+                        style: context.text.bodyLarge?.copyWith(
+                          color: context.scheme.onSurface,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                    ),
-                  ],
+                      const TextSpan(text: ' 님 👋'),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppDimens.md),
-              if (visible.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: AppDimens.xxl),
-                  child: Center(
-                    child: Text('조건에 맞는 방이 없어요',
-                        style: context.text.bodyMedium?.copyWith(color: context.palette.muted)),
+                const SizedBox(height: AppDimens.lg),
+                SectionLabel(
+                  '경쟁 방',
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!_loading && !_failed)
+                        Text('${visible.length}개',
+                            style: context.text.labelMedium?.copyWith(color: context.palette.muted)),
+                      const SizedBox(width: AppDimens.sm),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(AppDimens.radius),
+                        onTap: _openFilter,
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Badge(
+                            isLabelVisible: _filterActive,
+                            smallSize: 7,
+                            backgroundColor: context.scheme.primary,
+                            child: Icon(Icons.tune, size: 20, color: context.scheme.onSurface),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                )
-              else
-                for (final room in visible) ...[
-                  _RoomCard(
-                    room: room,
-                    onAction: () => Navigator.of(context).pushNamed(
-                      room.status == RoomStatus.live ? '/race' : '/waiting-room',
+                ),
+                const SizedBox(height: AppDimens.md),
+                if (_loading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppDimens.xxl),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (_failed)
+                  _errorState(context)
+                else if (visible.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: AppDimens.xxl),
+                    child: Center(
+                      child: Text(
+                        _rooms.isEmpty ? '아직 열린 방이 없어요' : '조건에 맞는 방이 없어요',
+                        style: context.text.bodyMedium?.copyWith(color: context.palette.muted),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppDimens.md),
-                ],
-            ],
+                  )
+                else
+                  for (final room in visible) ...[
+                    _RoomCard(
+                      room: room,
+                      onAction: () => Navigator.of(context).pushNamed(
+                        room.status == RoomStatus.live ? '/race' : '/waiting-room',
+                      ),
+                    ),
+                    const SizedBox(height: AppDimens.md),
+                  ],
+              ],
+            ),
           ),
           Positioned(
             left: AppDimens.screenPad,
@@ -190,6 +290,23 @@ class _HomeScreenState extends State<HomeScreen> {
             child: _InviteButton(onTap: _openInvite),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _errorState(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppDimens.xxl),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('방 목록을 불러오지 못했어요',
+                style: context.text.bodyMedium?.copyWith(color: context.palette.muted)),
+            const SizedBox(height: AppDimens.sm),
+            OutlinedButton(onPressed: _load, child: const Text('다시 시도')),
+          ],
+        ),
       ),
     );
   }

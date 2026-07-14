@@ -18,7 +18,7 @@ type Ctor = {
 
 @Entity()
 @Unique('unique_room_id_user_id', ['roomId', 'userId'])
-@Index('idx_participant_user_id', ['userId '])
+@Index('idx_participant_user_id', ['userId'])
 export class Participant extends DddBaseAggregate {
   @PrimaryGeneratedColumn()
   id: number;
