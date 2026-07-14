@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../core/api/api_client.dart';
+import '../../core/api/room_api.dart';
+import '../../core/auth/auth_service.dart';
 import '../../design_system/app_dimens.dart';
 import '../../design_system/app_palette.dart';
 
@@ -13,6 +16,10 @@ class RoomCreateScreen extends StatefulWidget {
 class _RoomCreateScreenState extends State<RoomCreateScreen> {
   static const List<int> _distances = [2, 3, 5, 10];
 
+  final RoomApi _roomApi = HttpRoomApi();
+
+  final TextEditingController _titleCtrl = TextEditingController();
+
   double _distanceKm = 3;
   bool _distCustom = false;
   final TextEditingController _distCustomCtrl = TextEditingController();
@@ -22,12 +29,73 @@ class _RoomCreateScreenState extends State<RoomCreateScreen> {
 
   DateTime? _startAt;
   int _capacity = 6;
+  bool _submitting = false;
 
   @override
   void dispose() {
+    _titleCtrl.dispose();
     _distCustomCtrl.dispose();
     _limitCtrl.dispose();
     super.dispose();
+  }
+
+  void _snack(String m) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(m)));
+
+  /// 서버 형식(YYYY-MM-DD HH:mm:ss)으로 시작 시각을 포맷한다.
+  String _serverStartOn(DateTime d) {
+    String two(int n) => n < 10 ? '0$n' : '$n';
+    return '${d.year}-${two(d.month)}-${two(d.day)} ${two(d.hour)}:${two(d.minute)}:00';
+  }
+
+  /// 입력을 검증해 POST /rooms 를 호출하고, 성공하면 대기실로 이동한다.
+  Future<void> _submit() async {
+    if (_submitting) return;
+
+    final title = _titleCtrl.text.trim();
+    if (title.isEmpty) {
+      _snack('방 제목을 입력하세요');
+      return;
+    }
+    if (_startAt == null) {
+      _snack('시작 시간을 선택하세요');
+      return;
+    }
+    final goalDistanceMeter = (_distanceKm * 1000).round();
+    if (goalDistanceMeter <= 0) {
+      _snack('목표 거리를 확인하세요');
+      return;
+    }
+
+    final token = AuthService.instance.accessToken;
+    if (token == null) {
+      _snack('로그인이 필요합니다');
+      return;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      await _roomApi.create(
+        accessToken: token,
+        title: title,
+        goalDistanceMeter: goalDistanceMeter,
+        goalLimitMinutes: _limit.round(),
+        startOn: _serverStartOn(_startAt!),
+        capacity: _capacity,
+      );
+      if (!mounted) return;
+      // 서버 응답에 방 id가 없어 대기실은 아직 목업으로 이동한다.
+      Navigator.of(context).pushReplacementNamed('/waiting-room');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _snack(e.message); // 서버 검증 메시지(미래 시각·정원·진행중 방 1개 등)
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _snack('방 개설에 실패했어요');
+    }
   }
 
   String get _distLabel =>
@@ -84,8 +152,10 @@ class _RoomCreateScreenState extends State<RoomCreateScreen> {
                 padding: const EdgeInsets.all(AppDimens.screenPad),
                 children: [
                   _label(context, '방 제목'),
-                  const TextField(
-                    decoration: InputDecoration(hintText: '예: 아침 3km 대결'),
+                  TextField(
+                    controller: _titleCtrl,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(hintText: '예: 아침 3km 대결'),
                   ),
                   const SizedBox(height: AppDimens.lg),
 
@@ -231,9 +301,14 @@ class _RoomCreateScreenState extends State<RoomCreateScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () =>
-                      Navigator.of(context).pushReplacementNamed('/waiting-room'),
-                  child: const Text('방 개설'),
+                  onPressed: _submitting ? null : _submit,
+                  child: _submitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('방 개설'),
                 ),
               ),
             ),

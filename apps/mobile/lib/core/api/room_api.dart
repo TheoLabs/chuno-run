@@ -47,9 +47,23 @@ class RoomListItem {
 abstract class RoomApi {
   /// 참여 가능한 방 목록을 반환한다 (GET /rooms).
   Future<List<RoomListItem>> list({required String accessToken});
+
+  /// 방을 생성한다 (POST /rooms). 생성자는 방장으로 자동 참가된다.
+  ///
+  /// [startOn]은 서버 형식 'YYYY-MM-DD HH:mm:ss'(KST). 서버가 미래 시각·정원≥2·
+  /// 진행중 방 1개 제한 등을 검증하므로 위반 시 [ApiException]을 던진다.
+  /// (현재 서버 응답에 생성된 방 id가 없어 반환값은 없다.)
+  Future<void> create({
+    required String accessToken,
+    required String title,
+    required int goalDistanceMeter,
+    required int goalLimitMinutes,
+    required String startOn,
+    required int capacity,
+  });
 }
 
-/// core-api 방 API 구현 (GET /rooms).
+/// core-api 방 API 구현 (GET/POST /rooms).
 class HttpRoomApi implements RoomApi {
   HttpRoomApi({ApiClient? client}) : _client = client ?? ApiClient();
   final ApiClient _client;
@@ -62,5 +76,23 @@ class HttpRoomApi implements RoomApi {
         .map((e) => RoomListItem.fromJson(e as Map<String, dynamic>))
         .toList();
     return items;
+  }
+
+  @override
+  Future<void> create({
+    required String accessToken,
+    required String title,
+    required int goalDistanceMeter,
+    required int goalLimitMinutes,
+    required String startOn,
+    required int capacity,
+  }) async {
+    await _client.post('/rooms', token: accessToken, body: {
+      'title': title,
+      'goalDistanceMeter': goalDistanceMeter,
+      'goalLimitMinutes': goalLimitMinutes,
+      'startOn': startOn,
+      'capacity': capacity,
+    });
   }
 }

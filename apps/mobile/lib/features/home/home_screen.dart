@@ -199,7 +199,11 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('추노'),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.of(context).pushNamed('/room-create'),
+        // 방 생성 화면에서 돌아오면 목록을 다시 불러와 새로 만든 방을 반영한다.
+        onPressed: () async {
+          await Navigator.of(context).pushNamed('/room-create');
+          if (mounted) _load();
+        },
         child: const Icon(Icons.add),
       ),
       body: Stack(

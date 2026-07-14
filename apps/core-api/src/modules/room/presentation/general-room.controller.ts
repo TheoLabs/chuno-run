@@ -20,10 +20,10 @@ export class GeneralRoomController {
     const user = this.context.get<User>(ContextKey.USER);
 
     // 3. Get result
-    await this.generalRoomService.create({ ...body, user });
+    const data = await this.generalRoomService.create({ ...body, user });
 
     // 4. Send response
-    return { data: {} };
+    return { data };
   }
 
   @Get()
