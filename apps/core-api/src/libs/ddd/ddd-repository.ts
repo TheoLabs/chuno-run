@@ -51,7 +51,6 @@ export abstract class DddRepository<T extends DddAggregate> {
     const dddEvents = events.map((event) => DddEvent.fromEvent(event));
     dddEvents.forEach((event) => event.setTxId(txId));
 
-    // 도메인 이벤트를 같은 트랜잭션으로 ddd_events(아웃박스)에 적재한다. 전파는 Debezium CDC → Kafka.
     await this.entityManager.save(dddEvents);
   }
 }

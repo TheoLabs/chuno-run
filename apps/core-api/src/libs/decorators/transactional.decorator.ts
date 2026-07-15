@@ -1,6 +1,6 @@
 import { ContextKey } from '@libs/context';
 import { InternalServerErrorException } from '@nestjs/common';
-import { DddEvent, DddService } from '@libs/ddd';
+import { DddService } from '@libs/ddd';
 
 export function Transactional() {
   return function (target: DddService, propertyKey: string, descriptor: PropertyDescriptor) {
@@ -14,8 +14,7 @@ export function Transactional() {
       const context = this.context;
       // @ts-expect-error private으로 되어있어서 타입에러 발생.
       const entityManager = this.entityManager;
-      // @ts-expect-error private으로 되어있어서 타입에러 발생.
-      const eventEmitter = this.eventEmitter;
+      // const eventEmitter = this.eventEmitter;
 
       if (!context || !entityManager) {
         throw new InternalServerErrorException('Context or Datasource instance is not existed.');
@@ -29,13 +28,14 @@ export function Transactional() {
       });
 
       // NOTE: DDD 이벤트를 꺼내서 Redis Queue로 넣어주기 위한 작업.
-      const dddEvents = context.get<DddEvent[]>(ContextKey.DDD_EVENTS);
-      if (dddEvents && dddEvents.length > 0) {
-        dddEvents.forEach((dddEvent) => {
-          eventEmitter.emit('ddd-event.created', dddEvent);
-        });
-      }
-      context.set(ContextKey.DDD_EVENTS, []);
+      // NOTE: Kafka + CDC 를 사용하면서 인프로세스 방식은 필요가 없어짐.
+      // const dddEvents = context.get<DddEvent[]>(ContextKey.DDD_EVENTS);
+      // if (dddEvents && dddEvents.length > 0) {
+      //   dddEvents.forEach((dddEvent) => {
+      //     eventEmitter.emit('ddd-event.created', dddEvent);
+      //   });
+      // }
+      // context.set(ContextKey.DDD_EVENTS, []);
 
       return result;
     };

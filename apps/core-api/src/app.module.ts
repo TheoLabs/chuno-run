@@ -9,9 +9,10 @@ import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { RequestLoggerInterceptor } from '@libs/interceptors';
 import { JwtTokenModule } from '@libs/jwt';
 import { ExceptionFilter } from '@libs/filters';
+import { EventStoreModule } from '@libs/event-store';
 
 @Module({
-  imports: [ContextModule, DatabasesModule, ConfigsModule, JwtTokenModule, DomainModule],
+  imports: [ContextModule, DatabasesModule, ConfigsModule, JwtTokenModule, DomainModule, EventStoreModule],
   controllers: [HealthController],
   providers: [
     {
