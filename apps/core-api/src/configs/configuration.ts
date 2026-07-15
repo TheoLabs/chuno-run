@@ -1,4 +1,5 @@
 import type { DataSourceOptions } from 'typeorm';
+import type { RedisOptions } from 'ioredis';
 
 export interface JwtConfig {
   accessTokenExpired: string;
@@ -16,6 +17,7 @@ interface AppConfig {
   mysql: DataSourceOptions;
   jwt: JwtConfig;
   kafka: KafkaConfig;
+  redis: RedisOptions;
 }
 
 export default (env: Record<string, any> = process.env): AppConfig => ({
@@ -39,5 +41,9 @@ export default (env: Record<string, any> = process.env): AppConfig => ({
       .filter(Boolean),
     groupId: env.KAFKA_GROUP_ID,
     topic: env.KAFKA_DDD_EVENT_TOPIC,
+  },
+  redis: {
+    host: env.REDIS_HOST,
+    port: Number(env.REDIS_PORT),
   },
 });
