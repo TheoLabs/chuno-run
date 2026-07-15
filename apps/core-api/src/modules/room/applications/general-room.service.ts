@@ -123,6 +123,47 @@ export class GeneralRoomService extends DddService {
   }
 
   @Transactional()
+  async changeSetting({
+    user,
+    id,
+    title,
+    capacity,
+    goalDistanceMeter,
+    goalLimitMinutes,
+  }: {
+    user: User;
+    id: number;
+    title?: string;
+    capacity?: number;
+    goalDistanceMeter?: number;
+    goalLimitMinutes?: number;
+  }) {
+    const [room] = await this.roomRepository.find({ id }, { relations: { participants: true } });
+
+    if (!room) {
+      throw new NotFoundException('존재하지 않는 방입니다.');
+    }
+
+    room.changeSetting({ hostUserId: user.id, title, capacity, goalDistanceMeter, goalLimitMinutes });
+    await this.roomRepository.save([room]);
+  }
+
+  @Transactional()
+  async cancel({ user, id }: { user: User; id: number }) {
+    const [room] = await this.roomRepository.find({ id }, { relations: { participants: true } });
+
+    if (!room) {
+      throw new NotFoundException('존재하지 않는 방입니다.');
+    }
+
+    room.cancel(user.id);
+
+    await this.roomRepository.save([room]);
+
+    return { id: room.id };
+  }
+
+  @Transactional()
   async join({ user, id }: { user: User; id: number }) {
     const [room] = await this.roomRepository.find({ id }, { relations: { participants: true } });
 
@@ -146,6 +187,21 @@ export class GeneralRoomService extends DddService {
     }
 
     room.exit(user.id);
+
+    await this.roomRepository.save([room]);
+
+    return { id: room.id };
+  }
+
+  @Transactional()
+  async kick({ user, roomId, participantId }: { user: User; roomId: number; participantId: number }) {
+    const [room] = await this.roomRepository.find({ id: roomId }, { relations: { participants: true } });
+
+    if (!room) {
+      throw new NotFoundException('존재하지 않는 방입니다.');
+    }
+
+    room.kick({ hostUserId: user.id, participantId });
 
     await this.roomRepository.save([room]);
 

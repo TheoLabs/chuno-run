@@ -9,7 +9,6 @@ export enum ParticipantStatus {
   RUNNING = 'running',
   FINISHED = 'finished',
   DNF = 'dnf', // NOTE: 중도 이탈
-  KICKED = 'kicked',
 }
 
 type Ctor = {

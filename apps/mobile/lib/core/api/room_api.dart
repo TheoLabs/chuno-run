@@ -173,6 +173,17 @@ abstract class RoomApi {
   /// 방에서 나간다 (POST /rooms/:id/exit, 요청 본문 없음). 모집중이 아니면 [ApiException](400).
   Future<void> exit({required String accessToken, required int id});
 
+  /// 방장이 참가자를 강퇴한다 (POST /rooms/:id/participants/:participantId/kick,
+  /// 요청 본문 없음). 방장 권한 + 모집(recruiting) 상태에서만 가능하며 실패 시
+  /// [ApiException](400/403/404).
+  ///
+  /// 경로의 `:participantId`는 참가자 row id([RoomParticipant.id])를 기대한다.
+  Future<void> kick({
+    required String accessToken,
+    required int roomId,
+    required int participantId,
+  });
+
   /// 방을 생성한다 (POST /rooms). 생성자는 방장으로 자동 참가된다.
   ///
   /// [startOn]은 서버 형식 'YYYY-MM-DD HH:mm:ss'(KST). 서버가 미래 시각·정원≥2·
@@ -185,6 +196,25 @@ abstract class RoomApi {
     required int goalLimitMinutes,
     required String startOn,
     required int capacity,
+  });
+
+  /// 방장이 방을 취소(삭제)한다 (DELETE /rooms/:id/cancel, 요청 본문 없음).
+  /// 방장 권한 + 모집(recruiting) 상태에서만 가능하며 실패 시 [ApiException](400/403/404).
+  Future<void> cancel({required String accessToken, required int id});
+
+  /// 방장이 방 조건을 변경한다 (PUT /rooms/:id). 방장 권한 + 모집(recruiting)
+  /// 상태에서만 가능하다.
+  ///
+  /// 모든 값은 부분 수정 — null이 아닌 필드만 요청 본문에 담아 보낸다. 서버가
+  /// 정원≥2·정원≥현재참가자수·거리>0·시간>0 등을 검증하므로 위반 시
+  /// [ApiException](400/403/404)을 던진다. (성공 응답은 빈 값이라 반환값은 없다.)
+  Future<void> changeSetting({
+    required String accessToken,
+    required int id,
+    String? title,
+    int? goalDistanceMeter,
+    int? goalLimitMinutes,
+    int? capacity,
   });
 }
 
@@ -221,6 +251,23 @@ class HttpRoomApi implements RoomApi {
   }
 
   @override
+  Future<void> kick({
+    required String accessToken,
+    required int roomId,
+    required int participantId,
+  }) async {
+    await _client.post(
+      '/rooms/$roomId/participants/$participantId/kick',
+      token: accessToken,
+    );
+  }
+
+  @override
+  Future<void> cancel({required String accessToken, required int id}) async {
+    await _client.delete('/rooms/$id/cancel', token: accessToken);
+  }
+
+  @override
   Future<void> create({
     required String accessToken,
     required String title,
@@ -236,5 +283,24 @@ class HttpRoomApi implements RoomApi {
       'startOn': startOn,
       'capacity': capacity,
     });
+  }
+
+  @override
+  Future<void> changeSetting({
+    required String accessToken,
+    required int id,
+    String? title,
+    int? goalDistanceMeter,
+    int? goalLimitMinutes,
+    int? capacity,
+  }) async {
+    // 부분 수정: null 아닌 필드만 담는다(변경된 값만 전송).
+    final body = <String, dynamic>{
+      if (title != null) 'title': title,
+      if (goalDistanceMeter != null) 'goalDistanceMeter': goalDistanceMeter,
+      if (goalLimitMinutes != null) 'goalLimitMinutes': goalLimitMinutes,
+      if (capacity != null) 'capacity': capacity,
+    };
+    await _client.put('/rooms/$id', token: accessToken, body: body);
   }
 }

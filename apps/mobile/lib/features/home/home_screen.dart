@@ -56,8 +56,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   _Filter _filter = _Filter.all;
 
-  static const double _distMax = 12; // km
-  static const double _limitMax = 120; // 분
+  // 방 조건 정책 상한과 일치 (기획 §8): 거리 100km, 시간 1,440분(24시간).
+  // 상한을 정책값에 맞춰, 유효하게 생성된 방이 필터 기본 범위에 걸려 숨는 문제를 제거한다.
+  static const double _distMax = 100; // km
+  static const double _limitMax = 1440; // 분
   RangeValues _dist = const RangeValues(0, _distMax);
   RangeValues _limit = const RangeValues(0, _limitMax);
 

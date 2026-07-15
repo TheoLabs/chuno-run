@@ -1,6 +1,6 @@
 import { UserGuard } from '@guards';
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { GeneralRoomCreateDto, GeneralRoomQueryDto } from './dto';
+import { GeneralRoomChangeSettingDto, GeneralRoomCreateDto, GeneralRoomQueryDto } from './dto';
 import { Context, ContextKey } from '@libs/context';
 import { User } from '@modules/user/domain/user.entity';
 import { GeneralRoomService } from '../applications/general-room.service';
@@ -84,10 +84,13 @@ export class GeneralRoomController {
    * 방 정보 수정(방장 권한)
    */
   @Put(':id')
-  async update(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
+  async update(@Param('id', ParseIntPipe) id: number, @Body() body: GeneralRoomChangeSettingDto) {
     // 1. Destructure body, params, query
     // 2. Get context
+    const user = this.context.get<User>(ContextKey.USER);
     // 3. Get result
+
+    await this.generalRoomService.changeSetting({ ...body, user, id });
     // 4. Send response
     return { data: {} };
   }
@@ -131,8 +134,28 @@ export class GeneralRoomController {
   async cancel(@Param('id', ParseIntPipe) id: number) {
     // 1. Destructure body, params, query
     // 2. Get context
+    const user = this.context.get<User>(ContextKey.USER);
+
     // 3. Get result
+    const data = await this.generalRoomService.cancel({ user, id });
+
     // 4. Send response
-    return { data: {} };
+    return { data };
+  }
+
+  /**
+   * 방에서 강퇴(방장 권한)
+   */
+  @Post(':id/participants/:participantId/kick')
+  async kick(@Param('id', ParseIntPipe) id: number, @Param('participantId', ParseIntPipe) participantId: number) {
+    // 1. Destructure body, params, query
+    // 2. Get context
+    const user = this.context.get<User>(ContextKey.USER);
+
+    // 3. Get result
+    const data = await this.generalRoomService.kick({ user, roomId: id, participantId });
+
+    // 4. Send response
+    return { data };
   }
 }

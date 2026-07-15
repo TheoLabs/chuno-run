@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/room_api.dart';
 import '../../core/auth/auth_service.dart';
+import '../../core/config/room_limits.dart';
 import '../../design_system/app_dimens.dart';
 import '../../design_system/app_palette.dart';
 import '../../design_system/widgets.dart';
@@ -29,8 +30,8 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
 
   RoomDetail? _detail;
 
-  /// 화면에 보여줄 참가자 목록. 서버 응답을 복사해 두고, 방장 강퇴 등
-  /// 로컬 상호작용을 반영한다(강퇴 서버 연동은 이번 범위 밖).
+  /// 화면에 보여줄 참가자 목록. 서버 응답을 복사해 두고, 방장 강퇴 성공 시
+  /// 해당 참가자를 로컬에서 제거해 반영한다.
   List<RoomParticipant> _participants = const [];
 
   bool _loading = true;
@@ -38,6 +39,12 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
 
   /// 방 나가기 요청 진행 중 — 중복 탭 방지.
   bool _exiting = false;
+
+  /// 방 삭제(취소) 요청 진행 중 — 중복 탭 방지.
+  bool _cancelling = false;
+
+  /// 강퇴 요청 진행 중인 참가자의 userId 집합 — 같은 참가자 중복 탭 방지.
+  final Set<int> _kicking = {};
   Timer? _ticker;
 
   /// 로그인 사용자가 방장(hostUserId)과 같은지.
@@ -114,8 +121,35 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
         ],
       ),
     );
-    // 강퇴 서버 엔드포인트는 아직 없어 로컬 목록에서만 제거한다.
-    if (ok == true && mounted) setState(() => _participants.remove(pl));
+    if (ok != true) return;
+    await _kick(pl);
+  }
+
+  /// 강퇴 API 호출 → 성공 시 로컬 목록에서 제거(깜빡임 없이 즉시 반영).
+  Future<void> _kick(RoomParticipant pl) async {
+    if (_kicking.contains(pl.userId)) return;
+    final id = widget.roomId;
+    final token = AuthService.instance.accessToken;
+    if (id == null || token == null) return;
+    setState(() => _kicking.add(pl.userId));
+    try {
+      // 경로의 participantId 자리에는 참가자 row id(RoomParticipant.id)를 넘긴다.
+      await _roomApi.kick(accessToken: token, roomId: id, participantId: pl.id);
+      if (!mounted) return;
+      setState(() {
+        _kicking.remove(pl.userId);
+        _participants.remove(pl);
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _kicking.remove(pl.userId));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _kicking.remove(pl.userId));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('강퇴하지 못했어요')));
+    }
   }
 
   @override
@@ -347,7 +381,7 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
           StatusPill('방장', accent: context.palette.gold)
         else if (_isHost)
           OutlinedButton(
-            onPressed: () => _confirmKick(pl),
+            onPressed: _kicking.contains(pl.userId) ? null : () => _confirmKick(pl),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(0, 28),
               padding: const EdgeInsets.symmetric(horizontal: AppDimens.md),
@@ -460,105 +494,30 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
     );
   }
 
-  // 방 조건 변경 — 하단 시트 (방장 전용). 현재 값으로 프리필하되 적용 서버 연동은 범위 밖.
-  void _openEditSheet() {
+  // 방 조건 변경 — 하단 시트 (방장 전용). 현재 값으로 프리필하고, '적용' 시 변경된
+  // 필드만 diff로 PUT /rooms/:id 에 보낸다(모집 중에만 가능). 성공 시 상세를 새로고침한다.
+  Future<void> _openEditSheet() async {
     final detail = _detail;
-    final goalCtrl = TextEditingController(
-        text: detail != null ? (detail.goalDistanceMeter / 1000).toStringAsFixed(
-            detail.goalDistanceMeter % 1000 == 0 ? 0 : 1) : '');
-    final limitCtrl =
-        TextEditingController(text: detail != null ? '${detail.goalLimitMinutes}' : '');
-    final capCtrl = TextEditingController(text: detail != null ? '${detail.capacity}' : '');
-    showModalBottomSheet<void>(
+    final token = AuthService.instance.accessToken;
+    final id = widget.roomId;
+    if (detail == null || token == null || id == null) return;
+
+    final changed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheet) {
-          String paceLabel() {
-            final g = double.tryParse(goalCtrl.text) ?? 0;
-            final l = double.tryParse(limitCtrl.text) ?? 0;
-            if (g <= 0 || l <= 0) return "--'--\"";
-            final sec = (l * 60 / g).round();
-            String two(int n) => n < 10 ? '0$n' : '$n';
-            return "${sec ~/ 60}'${two(sec % 60)}\"";
-          }
-
-          Widget field(String label, TextEditingController c) => Padding(
-                padding: const EdgeInsets.only(bottom: AppDimens.sm),
-                child: Row(
-                  children: [
-                    Expanded(child: Text(label, style: context.text.bodyMedium)),
-                    SizedBox(
-                      width: 96,
-                      child: TextField(
-                        controller: c,
-                        textAlign: TextAlign.center,
-                        keyboardType: TextInputType.number,
-                        onChanged: (_) => setSheet(() {}),
-                        decoration: const InputDecoration(
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-
-          return Padding(
-            padding: EdgeInsets.only(
-              left: AppDimens.screenPad,
-              right: AppDimens.screenPad,
-              top: AppDimens.xl,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + AppDimens.xl,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('방 조건 변경', style: context.text.titleLarge),
-                    Text('모집 중에만 가능',
-                        style: context.text.labelMedium?.copyWith(color: context.palette.muted)),
-                  ],
-                ),
-                const SizedBox(height: AppDimens.lg),
-                field('목표 거리 (km)', goalCtrl),
-                field('제한 시간 (분)', limitCtrl),
-                field('최대 인원', capCtrl),
-                const SizedBox(height: AppDimens.xs),
-                Text('→ 완주 기준 페이스 ${paceLabel()}/km',
-                    style: context.text.labelMedium?.copyWith(color: context.palette.muted)),
-                const SizedBox(height: AppDimens.lg),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text('닫기'),
-                      ),
-                    ),
-                    const SizedBox(width: AppDimens.sm),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text('적용'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
+      builder: (_) => _EditRoomSheet(
+        detail: detail,
+        currentParticipants: _participants.length,
+        roomApi: _roomApi,
+        accessToken: token,
+        roomId: id,
       ),
-    ).whenComplete(() {
-      goalCtrl.dispose();
-      limitCtrl.dispose();
-      capCtrl.dispose();
-    });
+    );
+    if (changed != true || !mounted) return;
+    await _load(); // 상세 새로고침 — 페이스·정원 즉시 반영.
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('방 조건을 변경했어요')));
   }
 
   Future<void> _confirmDelete() async {
@@ -577,8 +536,235 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
         ],
       ),
     );
-    if (ok == true && mounted) {
-      Navigator.of(context).pushReplacementNamed('/race-cancelled');
+    if (ok != true) return;
+    await _cancel();
+  }
+
+  /// 방 취소 API 호출 → 성공 시 홈(방 목록)으로 복귀. 방장이 자기 방을 삭제한
+  /// 것이므로 대기실을 pop 해 목록이 자동 갱신되게 한다.
+  Future<void> _cancel() async {
+    if (_cancelling) return;
+    final id = widget.roomId;
+    final token = AuthService.instance.accessToken;
+    if (id == null || token == null) return;
+    setState(() => _cancelling = true);
+    try {
+      await _roomApi.cancel(accessToken: token, id: id);
+      if (!mounted) return;
+      Navigator.of(context).pop(); // 홈으로 복귀 — 목록 자동 갱신.
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _cancelling = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _cancelling = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('방을 삭제하지 못했어요')));
     }
+  }
+}
+
+/// 방 조건 변경 하단 시트 (방장 전용). 컨트롤러를 자체 State가 소유해 dispose까지
+/// 안전하게 관리하고, '적용' 시 변경된 필드만 diff로 PUT 한다.
+///
+/// 성공 시 `Navigator.pop(context, true)`로 닫혀 호출부가 상세를 새로고침한다.
+/// 실패/검증 위반은 시트 안에서 SnackBar로 안내하고 열린 채로 둔다.
+class _EditRoomSheet extends StatefulWidget {
+  const _EditRoomSheet({
+    required this.detail,
+    required this.currentParticipants,
+    required this.roomApi,
+    required this.accessToken,
+    required this.roomId,
+  });
+
+  final RoomDetail detail;
+  final int currentParticipants;
+  final RoomApi roomApi;
+  final String accessToken;
+  final int roomId;
+
+  @override
+  State<_EditRoomSheet> createState() => _EditRoomSheetState();
+}
+
+class _EditRoomSheetState extends State<_EditRoomSheet> {
+  late final TextEditingController _goalCtrl;
+  late final TextEditingController _limitCtrl;
+  late final TextEditingController _capCtrl;
+
+  /// 적용 요청 진행 중 — 중복 탭 방지.
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final d = widget.detail;
+    _goalCtrl = TextEditingController(
+        text: (d.goalDistanceMeter / 1000)
+            .toStringAsFixed(d.goalDistanceMeter % 1000 == 0 ? 0 : 1));
+    _limitCtrl = TextEditingController(text: '${d.goalLimitMinutes}');
+    _capCtrl = TextEditingController(text: '${d.capacity}');
+  }
+
+  @override
+  void dispose() {
+    _goalCtrl.dispose();
+    _limitCtrl.dispose();
+    _capCtrl.dispose();
+    super.dispose();
+  }
+
+  String _paceLabel() {
+    final g = double.tryParse(_goalCtrl.text) ?? 0;
+    final l = double.tryParse(_limitCtrl.text) ?? 0;
+    if (g <= 0 || l <= 0) return "--'--\"";
+    final sec = (l * 60 / g).round();
+    String two(int n) => n < 10 ? '0$n' : '$n';
+    return "${sec ~/ 60}'${two(sec % 60)}\"";
+  }
+
+  // '적용' — 클라 검증 후 변경된 필드만 diff로 서버에 보낸다.
+  Future<void> _apply() async {
+    final d = widget.detail;
+    void warn(String m) =>
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+
+    // 입력 파싱 (목표 거리는 km, 소수 허용).
+    final km = double.tryParse(_goalCtrl.text.trim());
+    final limit = int.tryParse(_limitCtrl.text.trim());
+    final cap = int.tryParse(_capCtrl.text.trim());
+
+    // 클라 검증 — 목표 거리(0.1~100km)·제한 시간(5~1,440분) 상·하한 (서버 검증과 중복돼도 OK).
+    if (km == null || !isGoalDistanceKmInRange(km)) {
+      warn(kGoalDistanceRangeMessage);
+      return;
+    }
+    if (limit == null || !isGoalLimitMinutesInRange(limit)) {
+      warn(kGoalLimitRangeMessage);
+      return;
+    }
+    if (cap == null || cap < 2) {
+      warn('최대 인원은 2명 이상이어야 해요');
+      return;
+    }
+    if (cap < widget.currentParticipants) {
+      warn('최대 인원은 현재 참가자 수(${widget.currentParticipants}명)보다 적을 수 없어요');
+      return;
+    }
+
+    // km → m 변환 후 원본 대비 diff (바뀐 필드만 전송).
+    final meter = (km * 1000).round();
+    final nextGoal = meter != d.goalDistanceMeter ? meter : null;
+    final nextLimit = limit != d.goalLimitMinutes ? limit : null;
+    final nextCap = cap != d.capacity ? cap : null;
+    if (nextGoal == null && nextLimit == null && nextCap == null) {
+      Navigator.pop(context, false); // 변경 없음 — 요청 없이 닫기.
+      return;
+    }
+
+    // BuildContext는 await를 건너 쓰지 않도록 미리 캡처한다.
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _saving = true);
+    try {
+      await widget.roomApi.changeSetting(
+        accessToken: widget.accessToken,
+        id: widget.roomId,
+        goalDistanceMeter: nextGoal,
+        goalLimitMinutes: nextLimit,
+        capacity: nextCap,
+      );
+      if (!mounted) return;
+      navigator.pop(true); // 성공 — 호출부가 상세를 새로고침한다.
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      messenger.showSnackBar(const SnackBar(content: Text('방 조건을 변경하지 못했어요')));
+    }
+  }
+
+  Widget _field(String label, TextEditingController c) => Padding(
+        padding: const EdgeInsets.only(bottom: AppDimens.sm),
+        child: Row(
+          children: [
+            Expanded(child: Text(label, style: context.text.bodyMedium)),
+            SizedBox(
+              width: 96,
+              child: TextField(
+                controller: c,
+                textAlign: TextAlign.center,
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: AppDimens.screenPad,
+        right: AppDimens.screenPad,
+        top: AppDimens.xl,
+        bottom: MediaQuery.of(context).viewInsets.bottom + AppDimens.xl,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('방 조건 변경', style: context.text.titleLarge),
+              Text('모집 중에만 가능',
+                  style: context.text.labelMedium?.copyWith(color: context.palette.muted)),
+            ],
+          ),
+          const SizedBox(height: AppDimens.lg),
+          _field('목표 거리 (km)', _goalCtrl),
+          _field('제한 시간 (분)', _limitCtrl),
+          _field('최대 인원', _capCtrl),
+          const SizedBox(height: AppDimens.xs),
+          Text('→ 완주 기준 페이스 ${_paceLabel()}/km',
+              style: context.text.labelMedium?.copyWith(color: context.palette.muted)),
+          const SizedBox(height: AppDimens.lg),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _saving ? null : () => Navigator.pop(context, false),
+                  child: const Text('닫기'),
+                ),
+              ),
+              const SizedBox(width: AppDimens.sm),
+              Expanded(
+                child: FilledButton(
+                  onPressed: _saving ? null : _apply,
+                  child: _saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('적용'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

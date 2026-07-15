@@ -3,11 +3,15 @@ import 'package:flutter/material.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/room_api.dart';
 import '../../core/auth/auth_service.dart';
+import '../../core/config/room_limits.dart';
 import '../../design_system/app_dimens.dart';
 import '../../design_system/app_palette.dart';
 
 class RoomCreateScreen extends StatefulWidget {
-  const RoomCreateScreen({super.key});
+  const RoomCreateScreen({super.key, this.roomApi});
+
+  /// 테스트에서 가짜 구현을 주입하기 위한 훅. 기본은 [HttpRoomApi].
+  final RoomApi? roomApi;
 
   @override
   State<RoomCreateScreen> createState() => _RoomCreateScreenState();
@@ -16,7 +20,7 @@ class RoomCreateScreen extends StatefulWidget {
 class _RoomCreateScreenState extends State<RoomCreateScreen> {
   static const List<int> _distances = [2, 3, 5, 10];
 
-  final RoomApi _roomApi = HttpRoomApi();
+  late final RoomApi _roomApi = widget.roomApi ?? HttpRoomApi();
 
   final TextEditingController _titleCtrl = TextEditingController();
 
@@ -58,13 +62,20 @@ class _RoomCreateScreenState extends State<RoomCreateScreen> {
       _snack('방 제목을 입력하세요');
       return;
     }
-    if (_startAt == null) {
-      _snack('시작 시간을 선택하세요');
+    // 목표 거리(0.1~100km)·제한 시간(5~1,440분) 상·하한 검증 — 서버도 강제하지만
+    // 사용자에게 즉시 안내하기 위해 클라에서 먼저 막는다.
+    if (!isGoalDistanceKmInRange(_distanceKm)) {
+      _snack(kGoalDistanceRangeMessage);
       return;
     }
-    final goalDistanceMeter = (_distanceKm * 1000).round();
-    if (goalDistanceMeter <= 0) {
-      _snack('목표 거리를 확인하세요');
+    final goalDistanceMeter = (_distanceKm * 1000).round(); // km → m 환산.
+    final goalLimitMinutes = _limit.round();
+    if (!isGoalLimitMinutesInRange(goalLimitMinutes)) {
+      _snack(kGoalLimitRangeMessage);
+      return;
+    }
+    if (_startAt == null) {
+      _snack('시작 시간을 선택하세요');
       return;
     }
 
@@ -80,7 +91,7 @@ class _RoomCreateScreenState extends State<RoomCreateScreen> {
         accessToken: token,
         title: title,
         goalDistanceMeter: goalDistanceMeter,
-        goalLimitMinutes: _limit.round(),
+        goalLimitMinutes: goalLimitMinutes,
         startOn: _serverStartOn(_startAt!),
         capacity: _capacity,
       );
@@ -109,8 +120,11 @@ class _RoomCreateScreenState extends State<RoomCreateScreen> {
   }
 
   void _setLimitFromField(String t) {
+    // 슬라이더(5~120)는 흔한 범위를 위한 편의일 뿐 — 직접 입력은 정책 상한(1,440분)까지
+    // 허용하고, 범위 밖 값은 '방 개설' 시 검증에서 막는다. 슬라이더 위젯은 value의
+    // clamp로 별도 보호된다.
     final v = double.tryParse(t);
-    if (v != null) setState(() => _limit = v.clamp(5.0, 120.0));
+    if (v != null) setState(() => _limit = v);
   }
 
   Future<void> _pickStart() async {

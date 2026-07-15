@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mobile/core/api/room_api.dart';
 import 'package:mobile/core/auth/auth_service.dart';
+import 'package:mobile/core/config/room_limits.dart';
 import 'package:mobile/design_system/app_theme.dart';
+import 'package:mobile/features/room_create/room_create_screen.dart';
 import 'package:mobile/features/shell/main_shell.dart';
 import 'package:mobile/features/waiting_room/waiting_room_screen.dart';
 import 'package:mobile/main.dart';
@@ -75,6 +77,47 @@ class _FakeAuthApi implements AuthApi {
 
 /// 네트워크 없이 대기실을 검증하기 위한 가짜 RoomApi.
 class _FakeRoomApi implements RoomApi {
+  /// kick 호출로 전달된 participantId(=참가자 row id) 기록 — 강퇴 연동 검증용.
+  final List<int> kickedParticipantIds = [];
+
+  /// cancel 호출로 전달된 방 id 기록 — 방 삭제 연동 검증용.
+  final List<int> cancelledRoomIds = [];
+
+  /// retrieve가 돌려줄 방의 목표 거리(m) — 방 조건 변경 diff 검증을 위해 조절 가능.
+  _FakeRoomApi({this.goalDistanceMeter = 3000});
+  final int goalDistanceMeter;
+
+  /// changeSetting 호출 기록 — 방 조건 변경 연동 검증용.
+  int changeSettingCallCount = 0;
+  int? lastChangedGoalDistanceMeter;
+  int? lastChangedGoalLimitMinutes;
+  int? lastChangedCapacity;
+
+  /// create 호출 기록 — 방 생성 연동/검증용.
+  int createCallCount = 0;
+  int? lastCreatedGoalDistanceMeter;
+  int? lastCreatedGoalLimitMinutes;
+
+  @override
+  Future<void> changeSetting({
+    required String accessToken,
+    required int id,
+    String? title,
+    int? goalDistanceMeter,
+    int? goalLimitMinutes,
+    int? capacity,
+  }) async {
+    changeSettingCallCount++;
+    lastChangedGoalDistanceMeter = goalDistanceMeter;
+    lastChangedGoalLimitMinutes = goalLimitMinutes;
+    lastChangedCapacity = capacity;
+  }
+
+  @override
+  Future<void> cancel({required String accessToken, required int id}) async {
+    cancelledRoomIds.add(id);
+  }
+
   @override
   Future<List<RoomListItem>> list({required String accessToken}) async => const [];
 
@@ -86,7 +129,11 @@ class _FakeRoomApi implements RoomApi {
     required int goalLimitMinutes,
     required String startOn,
     required int capacity,
-  }) async {}
+  }) async {
+    createCallCount++;
+    lastCreatedGoalDistanceMeter = goalDistanceMeter;
+    lastCreatedGoalLimitMinutes = goalLimitMinutes;
+  }
 
   @override
   Future<void> join({required String accessToken, required int id}) async {}
@@ -95,12 +142,21 @@ class _FakeRoomApi implements RoomApi {
   Future<void> exit({required String accessToken, required int id}) async {}
 
   @override
+  Future<void> kick({
+    required String accessToken,
+    required int roomId,
+    required int participantId,
+  }) async {
+    kickedParticipantIds.add(participantId);
+  }
+
+  @override
   Future<RoomDetail> retrieve({required String accessToken, required int id}) async {
     return RoomDetail(
       id: id,
       hostUserId: 1,
       title: '아침 3km 대결',
-      goalDistanceMeter: 3000,
+      goalDistanceMeter: goalDistanceMeter,
       goalLimitMinutes: 30,
       startOn: DateTime.now().add(const Duration(minutes: 10)),
       capacity: 6,
@@ -108,8 +164,9 @@ class _FakeRoomApi implements RoomApi {
       participants: [
         RoomParticipant(
             id: 1, roomId: id, status: 'joined', currentDistanceMeter: 0, userId: 1, nickname: '나'),
+        // row id(2) != userId(20) — 강퇴가 userId가 아닌 participant row id를 전달하는지 검증하려 일부러 다르게 둔다.
         RoomParticipant(
-            id: 2, roomId: id, status: 'joined', currentDistanceMeter: 0, userId: 2, nickname: '러너_김'),
+            id: 2, roomId: id, status: 'joined', currentDistanceMeter: 0, userId: 20, nickname: '러너_김'),
       ],
     );
   }
@@ -199,6 +256,256 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('방 나가기'), findsOneWidget); // 비방장 참가자
     expect(find.text('경주 시작'), findsNothing); // 참가자에겐 숨김
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('방장 강퇴 — 확인 시 kick API가 참가자 row id로 호출된다', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prevAuth = AuthService.instance;
+    addTearDown(() => AuthService.instance = prevAuth);
+    // 로그인 유저 id(1) == hostUserId(1) → 방장.
+    AuthService.instance = AuthService(api: _FakeAuthApi())
+      ..accessToken = 'fake'
+      ..user = const AuthUser(id: 1, provider: 'kakao', status: UserStatus.active, nickname: '나');
+
+    final roomApi = _FakeRoomApi();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: WaitingRoomScreen(roomId: 1, roomApi: roomApi),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // 방장에게는 비방장 참가자(userId 2)에 대해 '강퇴' 버튼이 보인다.
+    expect(find.text('강퇴'), findsOneWidget);
+    await tester.tap(find.text('강퇴'));
+    await tester.pumpAndSettle(); // 확인 다이얼로그 표시
+
+    // 다이얼로그의 강퇴 버튼(FilledButton) 탭 → kick API 호출.
+    await tester.tap(find.widgetWithText(FilledButton, '강퇴'));
+    await tester.pumpAndSettle();
+
+    // participantId 자리에는 userId(20)가 아니라 참가자 row id(2)가 전달돼야 한다.
+    expect(roomApi.kickedParticipantIds, [2]);
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('방장 방 조건 변경 — 적용 시 changeSetting이 km→m 변환된 값으로 호출된다',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prevAuth = AuthService.instance;
+    addTearDown(() => AuthService.instance = prevAuth);
+    // 로그인 유저 id(1) == hostUserId(1) → 방장.
+    AuthService.instance = AuthService(api: _FakeAuthApi())
+      ..accessToken = 'fake'
+      ..user = const AuthUser(id: 1, provider: 'kakao', status: UserStatus.active, nickname: '나');
+
+    // 원본 목표 거리 5km — 적용에서 3km 입력 시 값이 바뀌어 요청이 나가도록.
+    final roomApi = _FakeRoomApi(goalDistanceMeter: 5000);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: WaitingRoomScreen(roomId: 1, roomApi: roomApi),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // 방 관리 메뉴 → 방 조건 변경 시트 열기.
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('방 조건 변경'));
+    await tester.pumpAndSettle();
+
+    // 목표 거리 필드(첫 번째 TextField)에 3km 입력 → 3000m 로 전송돼야 한다.
+    await tester.enterText(find.byType(TextField).first, '3');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '적용'));
+    await tester.pumpAndSettle();
+
+    expect(roomApi.changeSettingCallCount, 1);
+    expect(roomApi.lastChangedGoalDistanceMeter, 3000); // km→m 변환
+    expect(roomApi.lastChangedGoalLimitMinutes, isNull); // 미변경 필드는 전송 안 함
+    expect(roomApi.lastChangedCapacity, isNull);
+    expect(find.text('방 조건을 변경했어요'), findsOneWidget); // 성공 SnackBar
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('방장 방 삭제 — 확인 시 cancel API가 방 id로 호출된다', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prevAuth = AuthService.instance;
+    addTearDown(() => AuthService.instance = prevAuth);
+    // 로그인 유저 id(1) == hostUserId(1) → 방장.
+    AuthService.instance = AuthService(api: _FakeAuthApi())
+      ..accessToken = 'fake'
+      ..user = const AuthUser(id: 1, provider: 'kakao', status: UserStatus.active, nickname: '나');
+
+    final roomApi = _FakeRoomApi();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: WaitingRoomScreen(roomId: 1, roomApi: roomApi),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // 방 관리 메뉴 → 방 삭제 → 확인 다이얼로그.
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('방 삭제'));
+    await tester.pumpAndSettle();
+
+    // 다이얼로그의 삭제 버튼(FilledButton) 탭 → cancel API 호출.
+    await tester.tap(find.widgetWithText(FilledButton, '삭제'));
+    await tester.pumpAndSettle();
+
+    expect(roomApi.cancelledRoomIds, [1]);
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('방 생성 — 목표 거리 범위 밖(직접 입력 200km)이면 create 미호출 + 안내',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prevAuth = AuthService.instance;
+    addTearDown(() => AuthService.instance = prevAuth);
+    AuthService.instance = AuthService(api: _FakeAuthApi())
+      ..accessToken = 'fake'
+      ..user = const AuthUser(id: 1, provider: 'kakao', status: UserStatus.active, nickname: '나');
+
+    final roomApi = _FakeRoomApi();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: RoomCreateScreen(roomApi: roomApi),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 제목 입력.
+    await tester.enterText(find.byType(TextField).first, '아침 대결');
+    // 직접 입력으로 200km(상한 100km 초과) 입력.
+    await tester.tap(find.text('직접 입력'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField).at(1), '200');
+    await tester.pump();
+
+    await tester.tap(find.text('방 개설'));
+    await tester.pump();
+
+    expect(roomApi.createCallCount, 0); // 범위 밖 → 서버 호출 안 함
+    expect(find.text(kGoalDistanceRangeMessage), findsOneWidget); // 안내 SnackBar
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('방 생성 — 정상 범위(3km)면 create가 km→m 변환값(3000m)으로 호출된다',
+      (WidgetTester tester) async {
+    // 날짜·시간 피커가 좁은 폭에서 오버플로우하지 않도록 넉넉한 논리 크기를 준다.
+    tester.view.physicalSize = const Size(1400, 2600);
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prevAuth = AuthService.instance;
+    addTearDown(() => AuthService.instance = prevAuth);
+    AuthService.instance = AuthService(api: _FakeAuthApi())
+      ..accessToken = 'fake'
+      ..user = const AuthUser(id: 1, provider: 'kakao', status: UserStatus.active, nickname: '나');
+
+    final roomApi = _FakeRoomApi();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        // 성공 시 대기실로 pushReplacement 하므로 목적지 라우트를 제공한다.
+        routes: {'/waiting-room': (_) => const Scaffold()},
+        home: RoomCreateScreen(roomApi: roomApi),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '아침 3km 대결');
+    await tester.pump();
+
+    // 시작 시간 선택 — 날짜·시간 피커의 기본값(now+1h)을 그대로 확정.
+    await tester.tap(find.text('날짜·시간을 선택하세요'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK')); // 날짜 확정
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK')); // 시간 확정
+    await tester.pumpAndSettle();
+
+    // 기본 선택 거리 3km → 방 개설.
+    await tester.tap(find.text('방 개설'));
+    await tester.pumpAndSettle();
+
+    expect(roomApi.createCallCount, 1);
+    expect(roomApi.lastCreatedGoalDistanceMeter, 3000); // 3km → 3000m
+    expect(roomApi.lastCreatedGoalLimitMinutes, 30); // 기본 제한 시간(범위 내)
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('방 조건 변경 — 제한 시간 범위 밖(3분)이면 changeSetting 미호출 + 안내',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prevAuth = AuthService.instance;
+    addTearDown(() => AuthService.instance = prevAuth);
+    AuthService.instance = AuthService(api: _FakeAuthApi())
+      ..accessToken = 'fake'
+      ..user = const AuthUser(id: 1, provider: 'kakao', status: UserStatus.active, nickname: '나');
+
+    final roomApi = _FakeRoomApi(goalDistanceMeter: 5000);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: WaitingRoomScreen(roomId: 1, roomApi: roomApi),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('방 조건 변경'));
+    await tester.pumpAndSettle();
+
+    // 제한 시간 필드(두 번째 TextField)에 하한(5분) 미만 입력.
+    await tester.enterText(find.byType(TextField).at(1), '3');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '적용'));
+    await tester.pumpAndSettle();
+
+    expect(roomApi.changeSettingCallCount, 0); // 범위 밖 → 서버 호출 안 함
+    expect(find.text(kGoalLimitRangeMessage), findsOneWidget); // 안내 SnackBar
+    expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(const SizedBox());
   });

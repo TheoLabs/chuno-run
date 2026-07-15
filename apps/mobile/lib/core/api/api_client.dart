@@ -54,6 +54,12 @@ class ApiClient {
     return _decode(res);
   }
 
+  Future<Map<String, dynamic>> delete(String path, {String? token}) async {
+    final res =
+        await _client.delete(Uri.parse('$_baseUrl$path'), headers: _headers(token));
+    return _decode(res);
+  }
+
   Map<String, String> _headers(String? token) => {
         'Content-Type': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token',
