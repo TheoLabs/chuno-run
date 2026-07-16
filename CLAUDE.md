@@ -34,3 +34,17 @@
 아직 기획이 없다면 `/ib-generate <아이디어>`(또는 `/ib-plan`)로 시작한다.
 MCP 툴이 보이지 않으면 이 저장소에 `.mcp.json`이 있는지, issue-board 서버가 떠 있는지,
 첫 사용 시 MCP 승인을 했는지 확인하라.
+
+## core-api 컨벤션 (apps/core-api)
+
+### 응답 DTO는 `ResponseDto`를 상속 — `createdAt`/`updatedAt` 자동 포함
+
+응답 DTO(`toInstance(Dto)`로 변환되는 DTO)는 `ResponseDto`(`@libs/utils`)를 상속한다.
+`ResponseDto`가 **`createdAt`·`updatedAt`을 `@Expose`로 이미 노출**하므로:
+
+- **DTO에서 `createdAt`/`updatedAt`을 재선언하지 마라.** 재선언하면 base 프로퍼티를 덮어써
+  `TS2612` 컴파일 에러가 난다. (예: `MeDto`에 `createdAt` 추가 시도 → 에러)
+- "생성 시각/가입일" 같은 값이 필요하면 **별도 컬럼(`createdOn` 등)을 새로 만들지 말고
+  공통 감사 컬럼 `createdAt`을 쓴다.** (엔티티는 `DddBaseAggregate`에서 `createdAt`/`updatedAt`/
+  `deletedAt` 감사 컬럼을 상속한다.)
+- 클라이언트에 노출할 도메인 필드만 DTO에 `@Expose`로 추가하면 된다.

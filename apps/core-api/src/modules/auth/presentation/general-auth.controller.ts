@@ -3,6 +3,7 @@ import { UserGuard } from '@guards';
 import { User } from '@modules/user/domain/user.entity';
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { CompleteOnboardingInput, DevLoginInput, GeneralAuthService } from '../applications/general-auth.service';
+import { MeDto } from './dto';
 
 @Controller('auth')
 export class GeneralAuthController {
@@ -58,12 +59,7 @@ export class GeneralAuthController {
     // 3. Get result
     // 4. Send response
     return {
-      data: {
-        id: user.id,
-        status: user.status,
-        nickname: user.nickname,
-        profileImageUrl: user.profileImageUrl,
-      },
+      data: user.toInstance(MeDto),
     };
   }
 }

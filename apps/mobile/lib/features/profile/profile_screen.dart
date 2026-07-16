@@ -74,6 +74,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     };
   }
 
+  /// 계정 요약 — 연결 계정 + (가입일이 있으면) 가입월. createdAt은 GET /auth/me 실데이터.
+  String get _accountSummary {
+    final createdAt = AuthService.instance.user?.createdAt;
+    if (createdAt == null) return '$_providerLabel 로그인';
+    return '$_providerLabel 로그인 · ${createdAt.year}년 ${createdAt.month}월 가입';
+  }
+
   @override
   void dispose() {
     _nick.dispose();
@@ -367,8 +374,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
         ),
         const SizedBox(height: 2),
-        // 연결 계정은 세션 값(provider), 가입일은 대응 API가 없어 목업 유지.
-        Text('$_providerLabel 로그인 · 2026년 6월 가입',
+        // 연결 계정(provider)·가입일(createdAt) 모두 GET /auth/me 실데이터.
+        Text(_accountSummary,
             style: context.text.labelMedium?.copyWith(color: context.palette.muted)),
       ],
     );

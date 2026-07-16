@@ -6,6 +6,7 @@ import 'package:mobile/core/auth/auth_service.dart';
 import 'package:mobile/core/config/room_limits.dart';
 import 'package:mobile/design_system/app_theme.dart';
 import 'package:mobile/features/room_create/room_create_screen.dart';
+import 'package:mobile/features/profile/profile_screen.dart';
 import 'package:mobile/features/shell/main_shell.dart';
 import 'package:mobile/features/waiting_room/waiting_room_screen.dart';
 import 'package:mobile/main.dart';
@@ -51,15 +52,19 @@ class _FakeAuthApi implements AuthApi {
     lastConsents = consents;
   }
 
+  /// GET /auth/me 가 돌려줄 가입일(createdAt). 프로필 가입일 렌더 검증용.
+  DateTime meCreatedAt = DateTime(2026, 6, 1);
+
   @override
   Future<AuthUser> me({required String accessToken}) async {
-    // GET /auth/me — 서버에 저장된 최신 상태/닉네임을 돌려준다 (provider 없음).
+    // GET /auth/me — 서버에 저장된 최신 상태/닉네임/provider/createdAt를 돌려준다.
     final provider = _providerOf(accessToken);
     return AuthUser(
       id: 1,
-      provider: '',
+      provider: provider,
       status: _accounts[provider] ?? UserStatus.onboarding,
       nickname: _nicknames[provider] ?? '',
+      createdAt: meCreatedAt,
     );
   }
 
@@ -198,6 +203,30 @@ void main() {
 
     expect(tester.takeException(), isNull);
     handle.dispose();
+  });
+
+  testWidgets('프로필 — 연결 계정·가입일이 /auth/me(createdAt) 실데이터로 렌더된다',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prevAuth = AuthService.instance;
+    addTearDown(() => AuthService.instance = prevAuth);
+    // 로그인 세션 주입 — 진입 시 me()로 provider/createdAt를 갱신한다.
+    final fake = _FakeAuthApi()..meCreatedAt = DateTime(2025, 3, 1);
+    AuthService.instance = AuthService(api: fake)
+      ..accessToken = 'fake-token-google'
+      ..user = const AuthUser(id: 1, provider: 'google', status: UserStatus.active, nickname: '치타');
+
+    await tester.pumpWidget(MaterialApp(theme: AppTheme.dark, home: const ProfileScreen()));
+    await tester.pump(); // me() Future 해소
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    // provider(구글) + createdAt(2025-03) 실데이터가 그대로 표시된다.
+    expect(find.text('구글 로그인 · 2025년 3월 가입'), findsOneWidget);
   });
 
   testWidgets('대기실이 서버 데이터로 오버플로우 없이 렌더된다 (참가자 그리드)', (WidgetTester tester) async {
@@ -529,7 +558,7 @@ void main() {
     expect(auth.status, UserStatus.active);
     expect(auth.user?.nickname, '러너'); // /auth/me로 닉네임까지 갱신됨
     expect(fake.lastConsents, consents); // 표시된 약관 동의가 그대로 전송됨
-    // provider는 /auth/me가 주지 않지만 기존 세션 값이 유지된다.
+    // provider도 /auth/me가 돌려주므로 세션에 그대로 반영된다.
     expect(auth.user?.provider, provider);
 
     // 로그아웃 후 재로그인 → active (온보딩 스킵, #4)

@@ -17,6 +17,7 @@ class AuthUser {
     required this.status,
     required this.nickname,
     this.profileImageUrl,
+    this.createdAt,
   });
 
   final int id;
@@ -25,12 +26,16 @@ class AuthUser {
   final String nickname;
   final String? profileImageUrl;
 
+  /// 가입일 — GET /auth/me 의 createdAt(공통 감사 컬럼). 없으면 null.
+  final DateTime? createdAt;
+
   AuthUser copyWith({
     int? id,
     String? provider,
     UserStatus? status,
     String? nickname,
     String? profileImageUrl,
+    DateTime? createdAt,
   }) =>
       AuthUser(
         id: id ?? this.id,
@@ -38,6 +43,7 @@ class AuthUser {
         status: status ?? this.status,
         nickname: nickname ?? this.nickname,
         profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+        createdAt: createdAt ?? this.createdAt,
       );
 }
 
@@ -102,6 +108,7 @@ class HttpAuthApi implements AuthApi {
         provider: (user['provider'] as String?) ?? provider,
         status: userStatusFromString(user['status'] as String?),
         nickname: (user['nickname'] as String?) ?? '',
+        createdAt: DateTime.tryParse((user['createdAt'] as String?) ?? ''),
       ),
     );
   }
@@ -127,12 +134,12 @@ class HttpAuthApi implements AuthApi {
     final json = await _client.get('/auth/me', token: accessToken);
     final data = json['data'] as Map<String, dynamic>;
     return AuthUser(
-      // /auth/me 는 provider를 돌려주지 않는다 — 세션에 있던 값을 유지한다.
       id: data['id'] as int,
-      provider: '',
+      provider: (data['provider'] as String?) ?? '',
       status: userStatusFromString(data['status'] as String?),
       nickname: (data['nickname'] as String?) ?? '',
       profileImageUrl: data['profileImageUrl'] as String?,
+      createdAt: DateTime.tryParse((data['createdAt'] as String?) ?? ''),
     );
   }
 
@@ -187,16 +194,15 @@ class AuthService {
   }
 
   /// 현재 토큰의 사용자 정보를 GET /auth/me로 다시 읽어 세션을 갱신한다.
-  /// provider는 /auth/me가 주지 않으므로 기존 세션 값을 유지한다.
+  /// 응답에 provider가 포함되므로 fetched를 그대로 세션에 반영한다.
   Future<AuthUser> me() async {
     final token = accessToken;
     if (token == null) {
       throw StateError('로그인 후에 사용자 정보를 조회할 수 있습니다.');
     }
     final fetched = await _api.me(accessToken: token);
-    final merged = fetched.copyWith(provider: user?.provider);
-    user = merged;
-    return merged;
+    user = fetched;
+    return fetched;
   }
 
   /// 닉네임 수정. 기존 값과 **다를 때만** PUT /users/me로 저장하고 [me]로 세션을 갱신한다.
