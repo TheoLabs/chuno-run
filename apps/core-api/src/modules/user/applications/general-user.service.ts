@@ -5,11 +5,14 @@ import { User } from '../domain/user.entity';
 import { UserRepository } from '../infrastructure/user.repository';
 import { AgreementRepository } from '@modules/agreement/infrastructure/agreement.repository';
 import { AgreementStatus } from '@modules/agreement/domain/agreement.entity';
+import { RoomRepository } from '@modules/room/infrastructure/room.repository';
+import { ParticipantStatus } from '@modules/room/domain/participant.entity';
 
 @Injectable()
 export class GeneralUserService extends DddService {
   constructor(
     private readonly agreementRepository: AgreementRepository,
+    private readonly roomRepository: RoomRepository,
     private readonly userRepository: UserRepository
   ) {
     super();
@@ -62,5 +65,19 @@ export class GeneralUserService extends DddService {
     user.update({ nickname });
 
     await this.userRepository.save([user]);
+  }
+
+  async getStats({ user }: { user: User }) {
+    const participants = await this.roomRepository.findParticipants({ userId: user.id });
+    const finishedCount = participants.filter((p) => p.status === ParticipantStatus.FINISHED).length;
+
+    return {
+      participatedRoomCount: [
+        ...new Set(participants.filter((p) => p.status === ParticipantStatus.FINISHED).map((p) => p.roomId)),
+      ].length,
+      winCount: participants.filter((p) => p.finalRank === 1 && p.status === ParticipantStatus.FINISHED).length,
+      totalRunningDistanceMeter: participants.reduce((acc, p) => acc + p.currentDistanceMeter, 0),
+      completedRate: participants.length === 0 ? 0 : Math.round((finishedCount / participants.length) * 100),
+    };
   }
 }

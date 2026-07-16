@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:mobile/core/api/api_client.dart';
 import 'package:mobile/core/api/room_api.dart';
+import 'package:mobile/core/api/user_stats_api.dart';
 import 'package:mobile/core/auth/auth_service.dart';
 import 'package:mobile/core/config/room_limits.dart';
 import 'package:mobile/design_system/app_theme.dart';
@@ -177,6 +179,21 @@ class _FakeRoomApi implements RoomApi {
   }
 }
 
+/// 네트워크 없이 프로필 통계 렌더를 검증하기 위한 가짜 UserStatsApi.
+class _FakeUserStatsApi implements UserStatsApi {
+  _FakeUserStatsApi(this.stats, {this.fail = false});
+  final UserStats stats;
+  final bool fail;
+  int callCount = 0;
+
+  @override
+  Future<UserStats> me({required String accessToken}) async {
+    callCount++;
+    if (fail) throw ApiException(500, 'boom');
+    return stats;
+  }
+}
+
 void main() {
   testWidgets('앱이 로그인 화면으로 시작한다 (카카오·구글·애플)', (WidgetTester tester) async {
     await tester.pumpWidget(const ChunoApp());
@@ -227,6 +244,73 @@ void main() {
     expect(tester.takeException(), isNull);
     // provider(구글) + createdAt(2025-03) 실데이터가 그대로 표시된다.
     expect(find.text('구글 로그인 · 2025년 3월 가입'), findsOneWidget);
+  });
+
+  testWidgets('프로필 통계 — GET /users/me/stats 값이 거리(m→km)·완주율(%)로 렌더된다',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prevAuth = AuthService.instance;
+    addTearDown(() => AuthService.instance = prevAuth);
+    AuthService.instance = AuthService(api: _FakeAuthApi())
+      ..accessToken = 'fake-token-kakao'
+      ..user = const AuthUser(id: 1, provider: 'kakao', status: UserStatus.active, nickname: '치타');
+
+    final statsApi = _FakeUserStatsApi(const UserStats(
+      participatedRoomCount: 12,
+      winCount: 3,
+      totalRunningDistanceMeter: 45120,
+      completedRate: 67,
+    ));
+
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.dark,
+      home: ProfileScreen(statsApi: statsApi),
+    ));
+    await tester.pump(); // me() + stats Future 해소
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(statsApi.callCount, 1);
+    expect(find.text('12'), findsOneWidget); // 참가 경주 수
+    expect(find.text('3'), findsOneWidget); // 우승 수
+    expect(find.text('45.1'), findsOneWidget); // 45120m → 45.1km
+    // 완주율은 숫자(titleLarge) + '%'(titleMedium) 분리 스팬 — plain text로 매칭.
+    expect(find.text('67%', findRichText: true), findsOneWidget);
+  });
+
+  testWidgets('프로필 통계 — 로드 실패 시 자리표시자(-)와 다시 시도가 보인다',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final prevAuth = AuthService.instance;
+    addTearDown(() => AuthService.instance = prevAuth);
+    AuthService.instance = AuthService(api: _FakeAuthApi())
+      ..accessToken = 'fake-token-kakao'
+      ..user = const AuthUser(id: 1, provider: 'kakao', status: UserStatus.active, nickname: '치타');
+
+    final statsApi = _FakeUserStatsApi(
+      const UserStats(
+          participatedRoomCount: 0, winCount: 0, totalRunningDistanceMeter: 0, completedRate: 0),
+      fail: true,
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.dark,
+      home: ProfileScreen(statsApi: statsApi),
+    ));
+    await tester.pump();
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('다시 시도'), findsOneWidget);
+    expect(find.text('-'), findsWidgets); // 통계 타일이 자리표시자로 채워짐
   });
 
   testWidgets('대기실이 서버 데이터로 오버플로우 없이 렌더된다 (참가자 그리드)', (WidgetTester tester) async {

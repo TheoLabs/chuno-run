@@ -114,13 +114,18 @@ class AvatarCircle extends StatelessWidget {
 
 /// 지표 타일 (숫자 + 라벨).
 class StatTile extends StatelessWidget {
-  const StatTile({super.key, required this.value, required this.label});
+  const StatTile({super.key, required this.value, required this.label, this.valueSuffix});
 
   final String value;
   final String label;
 
+  /// 값 뒤에 붙는 접미사(예: '%'). 지정하면 값보다 한 단계 작은 폰트로 표시한다.
+  final String? valueSuffix;
+
   @override
   Widget build(BuildContext context) {
+    final valueStyle = context.text.titleLarge;
+    final suffix = valueSuffix;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: AppDimens.md),
       decoration: BoxDecoration(
@@ -129,7 +134,17 @@ class StatTile extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(value, style: context.text.titleLarge),
+          if (suffix == null)
+            Text(value, style: valueStyle)
+          else
+            Text.rich(
+              TextSpan(
+                text: value,
+                style: valueStyle,
+                // 접미사만 한 단계 작은 스케일(titleMedium)로 — 숫자 크기는 그대로.
+                children: [TextSpan(text: suffix, style: context.text.titleMedium)],
+              ),
+            ),
           const SizedBox(height: 2),
           Text(
             label,

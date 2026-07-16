@@ -2,6 +2,7 @@ import { DddRepository } from '@libs/ddd';
 import { Injectable } from '@nestjs/common';
 import { Room, RoomStatus } from '../domain/room.entity';
 import { checkInValue, checkRangeValue, convertOptions, stripUndefined, TypeormRelationOptions } from '@libs/utils';
+import { Participant } from '../domain/participant.entity';
 
 @Injectable()
 export class RoomRepository extends DddRepository<Room> {
@@ -46,6 +47,16 @@ export class RoomRepository extends DddRepository<Room> {
         status: checkInValue(conditions.statuses),
         goalDistanceMeter: checkRangeValue(conditions.minGoalDistanceMeter, conditions.maxGoalDistanceMeter),
       }),
+    });
+  }
+
+  async findParticipants(conditions: { id?: number; userId?: number }, options?: TypeormRelationOptions<Participant>) {
+    return this.entityManager.find(Participant, {
+      where: stripUndefined({
+        id: conditions.id,
+        userId: conditions.userId,
+      }),
+      ...convertOptions(options),
     });
   }
 }

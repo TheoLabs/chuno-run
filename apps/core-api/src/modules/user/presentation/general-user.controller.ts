@@ -1,6 +1,6 @@
 import { UserGuard } from '@guards';
 import { Context, ContextKey } from '@libs/context';
-import { Body, Controller, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
 import { User } from '../domain/user.entity';
 import { GeneralUserChangeNickname, GeneralUserOnboardingDto } from './dto';
 import { GeneralUserService } from '../applications/general-user.service';
@@ -37,5 +37,18 @@ export class GeneralUserController {
     // 4. Send response
 
     return { data: {} };
+  }
+
+  @Get('me/stats')
+  async getStats() {
+    // 1. Destructure body, params, query
+    // 2. Get context
+    const user = this.context.get<User>(ContextKey.USER);
+
+    // 3. Get result
+    const data = await this.generalUserService.getStats({ user });
+
+    // 4. Send response
+    return { data };
   }
 }

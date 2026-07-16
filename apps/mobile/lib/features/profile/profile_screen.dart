@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../design_system/app_dimens.dart';
 import '../../design_system/app_palette.dart';
 import '../../design_system/widgets.dart';
+import '../../core/api/user_stats_api.dart';
 import '../../core/auth/auth_service.dart';
 import '../../mock/mock_data.dart';
 
@@ -15,7 +16,10 @@ class _RecentRace {
 }
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({super.key, this.statsApi});
+
+  /// 러닝 통계 API. 테스트에서 가짜 구현을 주입한다. null이면 실제 HTTP 구현을 쓴다.
+  final UserStatsApi? statsApi;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -23,11 +27,16 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _nick = TextEditingController();
+  late final UserStatsApi _statsApi = widget.statsApi ?? HttpUserStatsApi();
   bool _editing = false;
   bool _saving = false;
   bool _notif = true;
   bool _reconsentDone = false;
   bool _hasPhoto = false; // 프로필 사진 설정 여부 (목업)
+
+  /// GET /users/me/stats 로 불러온 러닝 통계. 로딩 전/실패 시 null.
+  UserStats? _stats;
+  bool _statsFailed = false;
 
   static const List<_RecentRace> _recent = [
     _RecentRace('아침 3km 대결', '07-08 · 목표 3km', '1위'),
@@ -40,6 +49,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     _nick.text = _currentNick;
     _refresh();
+    _loadStats();
+  }
+
+  /// 화면 진입 시 GET /users/me/stats 로 러닝 통계를 불러온다.
+  /// 미로그인(테스트·비정상 진입)이면 조용히 건너뛴다.
+  Future<void> _loadStats() async {
+    final token = AuthService.instance.accessToken;
+    if (token == null) return;
+    if (mounted) setState(() => _statsFailed = false);
+    try {
+      final stats = await _statsApi.me(accessToken: token);
+      if (!mounted) return;
+      setState(() => _stats = stats);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _statsFailed = true);
+    }
   }
 
   /// 화면 진입 시 GET /auth/me로 세션(닉네임/연결계정 등)을 최신화한다.
@@ -455,15 +481,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _statsRow(BuildContext context) {
-    return Row(
-      children: const [
-        Expanded(child: StatTile(value: '${MockData.totalRaces}', label: '경쟁')),
-        SizedBox(width: AppDimens.sm),
-        Expanded(child: StatTile(value: '${MockData.totalWins}', label: '우승')),
-        SizedBox(width: AppDimens.sm),
-        Expanded(child: StatTile(value: '${MockData.totalDistanceKm}', label: '총 km')),
-        SizedBox(width: AppDimens.sm),
-        Expanded(child: StatTile(value: '83%', label: '완주율')),
+    final s = _stats;
+    // 로딩 전/실패 시에는 '-' 자리표시자로 채운다(레이아웃 흔들림·오버플로우 방지).
+    const dash = '-';
+    final races = s != null ? '${s.participatedRoomCount}' : dash;
+    final wins = s != null ? '${s.winCount}' : dash;
+    // 서버는 미터(m)로 주므로 km로 변환해 표시한다.
+    final km = s != null ? (s.totalRunningDistanceMeter / 1000).toStringAsFixed(1) : dash;
+    // completedRate는 0~100 정수 퍼센트 — 숫자는 그대로, '%'는 접미사로 더 작게 표시한다.
+    final rate = s != null ? '${s.completedRate}' : dash;
+    final rateSuffix = s != null ? '%' : null;
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: StatTile(value: races, label: '경쟁')),
+            const SizedBox(width: AppDimens.sm),
+            Expanded(child: StatTile(value: wins, label: '우승')),
+            const SizedBox(width: AppDimens.sm),
+            Expanded(child: StatTile(value: km, label: '총 km')),
+            const SizedBox(width: AppDimens.sm),
+            Expanded(child: StatTile(value: rate, valueSuffix: rateSuffix, label: '완주율')),
+          ],
+        ),
+        if (_statsFailed) ...[
+          const SizedBox(height: AppDimens.sm),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('통계를 불러오지 못했어요',
+                  style: context.text.labelMedium?.copyWith(color: context.palette.muted)),
+              const SizedBox(width: AppDimens.xs),
+              TextButton(
+                onPressed: _loadStats,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: AppDimens.sm),
+                  minimumSize: const Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('다시 시도'),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
