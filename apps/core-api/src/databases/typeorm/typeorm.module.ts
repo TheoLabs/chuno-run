@@ -12,11 +12,7 @@ import { DataSource } from 'typeorm';
         ...configsService.mysql,
         entities,
         // NOTE: 스키마 변경은 마이그레이션으로만. (data-source.ts + pnpm migration:*)
-        synchronize: false,
-        // 컴파일된 마이그레이션(dist) 을 부팅 시 자동 실행. 멀티 인스턴스 운영 전환 시엔
-        // migrationsRun:false 로 바꾸고 배포 파이프라인의 별도 스텝(migration:run)으로 뺀다.
-        migrations: ['dist/databases/migrations/*.js'],
-        migrationsRun: true,
+        synchronize: true,
         logging: false,
         charset: 'utf8mb4',
         timezone: 'Z',
