@@ -14,7 +14,8 @@
     "typecheck": "turbo run typecheck",
     "app:run": "pnpm --filter @chuno/mobile run",
     "app:watch": "pnpm --filter @chuno/mobile dev",
-    "api:dev": "pnpm --filter @chuno/core-api dev"
+    "api:dev": "pnpm --filter @chuno/core-api dev",
+    "api:web": "pnpm --filter @chuno/back-office dev"
   },
   "devDependencies": {
     "turbo": "^2.5.0",
