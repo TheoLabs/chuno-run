@@ -13,6 +13,7 @@ import {
   LogoutOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -62,13 +63,18 @@ function selectedKey(pathname: string): string {
 export function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { admin, logout } = useAuth();
 
   const userMenu: MenuProps["items"] = [
     {
       key: "logout",
       icon: <LogoutOutlined />,
       label: "로그아웃",
-      onClick: () => navigate("/login"),
+      onClick: () => {
+        // 토큰 폐기 후 로그인으로.
+        logout();
+        navigate("/login", { replace: true });
+      },
     },
   ];
 
@@ -111,7 +117,7 @@ export function AdminLayout() {
         >
           <Dropdown menu={{ items: userMenu }} trigger={["click"]}>
             <Text style={{ cursor: "pointer" }}>
-              admin@chuno.run <DownOutlined style={{ fontSize: 10 }} />
+              {admin?.email ?? "관리자"} <DownOutlined style={{ fontSize: 10 }} />
             </Text>
           </Dropdown>
         </Header>

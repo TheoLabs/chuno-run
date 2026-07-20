@@ -8,12 +8,25 @@ import { RoomListPage } from "./pages/RoomListPage";
 import { RoomDetailPage } from "./pages/RoomDetailPage";
 import { AgreementPage } from "./pages/AgreementPage";
 import { AdminAccountsPage } from "./pages/AdminAccountsPage";
+import { AuthProvider } from "./auth/AuthContext";
+import { RedirectIfAuth, RequireAuth } from "./auth/guards";
 
 const router = createBrowserRouter([
-  { path: "/login", element: <LoginPage /> },
+  {
+    path: "/login",
+    element: (
+      <RedirectIfAuth>
+        <LoginPage />
+      </RedirectIfAuth>
+    ),
+  },
   {
     path: "/",
-    element: <AdminLayout />,
+    element: (
+      <RequireAuth>
+        <AdminLayout />
+      </RequireAuth>
+    ),
     children: [
       { index: true, element: <DashboardPage /> },
       { path: "users", element: <UserListPage /> },
@@ -28,5 +41,9 @@ const router = createBrowserRouter([
 ]);
 
 export function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
+  );
 }

@@ -1,8 +1,13 @@
 import { useState } from "react";
-import { Button, Card, Typography } from "antd";
+import { Button, Card, Form, Input, Modal, Typography } from "antd";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
+import { ApiError } from "../api/client";
 
 const { Title, Text } = Typography;
+
+// 로컬 mock 이라 로그인에 이메일이 필요하다. 시드된 초기 관리자 힌트.
+const HINT_EMAIL = "admin@chuno.run";
 
 /** 구글 브랜드 'G' 마크 (인라인 SVG). */
 function GoogleMark() {
@@ -30,11 +35,40 @@ function GoogleMark() {
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const [showRejected, setShowRejected] = useState(false);
+  const { login } = useAuth();
 
-  const handleGoogleLogin = () => {
-    // 목 동작 — 실제 OAuth 없이 대시보드로 이동.
-    navigate("/");
+  const [chooserOpen, setChooserOpen] = useState(false);
+  const [email, setEmail] = useState(HINT_EMAIL);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // "Google로 로그인" → 실제 OAuth 리다이렉트 대신, 구글 계정 선택을 흉내내는
+  // 로컬 이메일 입력 모달을 연다.
+  const openChooser = () => {
+    setEmail(HINT_EMAIL);
+    setErrorMessage(null);
+    setChooserOpen(true);
+  };
+
+  const submitLogin = async () => {
+    const trimmed = email.trim();
+    if (!trimmed) return;
+
+    setChooserOpen(false);
+    setLoading(true);
+    setErrorMessage(null);
+    try {
+      // 로컬 mock: 선택한 계정 이메일을 "구글이 검증해 돌려준 이메일"로 흉내내 서버에 전달한다.
+      // 서버가 등록/활성 여부를 판정해 401(미등록)·403(비활성)을 돌려준다.
+      await login({ email: trimmed });
+      navigate("/", { replace: true });
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "로그인 중 오류가 발생했습니다.";
+      setErrorMessage(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -60,7 +94,8 @@ export function LoginPage() {
           size="large"
           block
           icon={<GoogleMark />}
-          onClick={handleGoogleLogin}
+          onClick={openChooser}
+          loading={loading}
         >
           Google로 로그인
         </Button>
@@ -71,7 +106,7 @@ export function LoginPage() {
           </Text>
         </div>
 
-        {showRejected && (
+        {errorMessage && (
           <div
             style={{
               marginTop: 12,
@@ -85,21 +120,39 @@ export function LoginPage() {
             }}
             role="alert"
           >
-            등록되지 않은 계정입니다.
+            {errorMessage}
           </div>
         )}
-
-        <div style={{ textAlign: "center", marginTop: 12 }}>
-          <Button
-            type="link"
-            size="small"
-            style={{ fontSize: 12, height: "auto", padding: 0 }}
-            onClick={() => setShowRejected((prev) => !prev)}
-          >
-            {showRejected ? "거부 안내 닫기" : "미등록 계정 거부 예시 보기"}
-          </Button>
-        </div>
       </Card>
+
+      {/* 로컬 mock: 실제 구글 OAuth 계정 선택 화면 대신 이메일을 직접 받아 검증된 신원을 흉내낸다. */}
+      <Modal
+        title="Google 계정 선택"
+        open={chooserOpen}
+        onOk={submitLogin}
+        onCancel={() => setChooserOpen(false)}
+        okText="이 계정으로 계속"
+        cancelText="취소"
+        okButtonProps={{ disabled: !email.trim() }}
+        confirmLoading={loading}
+        destroyOnHidden
+      >
+        <Form layout="vertical" onFinish={submitLogin}>
+          <Form.Item
+            label="이메일"
+            help="로컬 개발용 mock 로그인입니다. 실제 구글 인증은 수행하지 않습니다."
+          >
+            <Input
+              type="email"
+              autoFocus
+              value={email}
+              placeholder={HINT_EMAIL}
+              onChange={(e) => setEmail(e.target.value)}
+              onPressEnter={submitLogin}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

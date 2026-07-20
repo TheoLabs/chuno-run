@@ -19,7 +19,8 @@
     "typeorm": "typeorm-ts-node-commonjs -d src/databases/typeorm/data-source.ts",
     "migration:generate": "pnpm typeorm migration:generate",
     "migration:run": "pnpm typeorm migration:run",
-    "migration:revert": "pnpm typeorm migration:revert"
+    "migration:revert": "pnpm typeorm migration:revert",
+    "seed:admin": "ts-node -r tsconfig-paths/register src/databases/seeds/seed-admin.ts"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.4",
