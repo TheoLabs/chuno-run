@@ -6,6 +6,10 @@ export interface AccessTokenPayload {
   userId: number;
 }
 
+export interface AdminAccessTokenPayload {
+  adminId: number;
+}
+
 @Injectable()
 export class TokenService {
   constructor(
@@ -22,6 +26,19 @@ export class TokenService {
 
   verifyAccessToken(token: string): AccessTokenPayload {
     return this.jwtService.verify<AccessTokenPayload>(token, {
+      secret: this.configsService.jwt.accessTokenSecret,
+    });
+  }
+
+  signAdminAccessToken(payload: AdminAccessTokenPayload): string {
+    return this.jwtService.sign(payload, {
+      secret: this.configsService.jwt.accessTokenSecret,
+      expiresIn: this.configsService.jwt.accessTokenExpired as JwtSignOptions['expiresIn'],
+    });
+  }
+
+  verifyAdminAccessToken(token: string): AdminAccessTokenPayload {
+    return this.jwtService.verify<AdminAccessTokenPayload>(token, {
       secret: this.configsService.jwt.accessTokenSecret,
     });
   }

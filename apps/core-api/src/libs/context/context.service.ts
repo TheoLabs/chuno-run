@@ -6,6 +6,7 @@ export enum ContextKey {
   DDD_EVENTS = 'dddEvents',
   TXID = 'txId',
   USER = 'user',
+  ADMIN = 'admin',
   // NOTE: 추후 필요한 경우 추가.
 }
 
