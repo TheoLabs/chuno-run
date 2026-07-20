@@ -8,14 +8,15 @@ import {
   Input,
   Row,
   Space,
-  Table,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { useNavigate, useParams } from "react-router-dom";
 import { StatusTag } from "../components/StatusTag";
+import { FitTable } from "../components/FitTable";
 import { getParticipations, getUserById } from "../mock/users";
+import { PROVIDER_LABEL, USER_STATUS_LABEL } from "../labels";
 import type { UserParticipation, UserStatus } from "../mock/types";
 
 const { Title, Text } = Typography;
@@ -26,7 +27,7 @@ const historyColumns: ColumnsType<UserParticipation> = [
     title: "상태",
     dataIndex: "status",
     key: "status",
-    render: (s: string) => <StatusTag status={s} />,
+    render: (s: string) => <StatusTag status={s} kind="participation" />,
   },
   { title: "등수", dataIndex: "rank", key: "rank" },
   { title: "거리", dataIndex: "distance", key: "distance" },
@@ -55,7 +56,7 @@ export function UserDetailPage() {
   const changeStatus = (next: UserStatus, label: string) => {
     let reason = "";
     modal.confirm({
-      title: `계정 상태를 '${next}'(으)로 변경할까요?`,
+      title: `계정 상태를 '${USER_STATUS_LABEL[next]}'(으)로 변경할까요?`,
       content: (
         <Space direction="vertical" style={{ width: "100%", marginTop: 8 }}>
           <Text type="secondary">{label}</Text>
@@ -73,14 +74,14 @@ export function UserDetailPage() {
       onOk: () => {
         setStatus(next);
         message.success(
-          `상태를 ${next}(으)로 변경했습니다${reason ? ` · 사유: ${reason}` : ""}`,
+          `상태를 ${USER_STATUS_LABEL[next]}(으)로 변경했습니다${reason ? ` · 사유: ${reason}` : ""}`,
         );
       },
     });
   };
 
   return (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+    <div className="page-column">
       <Space align="center">
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/users")} />
         <Title level={4} style={{ margin: 0 }}>
@@ -88,16 +89,18 @@ export function UserDetailPage() {
         </Title>
       </Space>
 
-      <Row gutter={16}>
+      <Row gutter={16} className="page-fill">
         <Col xs={24} lg={12}>
           <Card title="프로필" style={{ height: "100%" }}>
             <Descriptions column={1} size="small" styles={{ label: { width: 90 } }}>
               <Descriptions.Item label="닉네임">
                 {user.nickname ?? "(미설정)"}
               </Descriptions.Item>
-              <Descriptions.Item label="provider">{user.provider}</Descriptions.Item>
+              <Descriptions.Item label="가입 경로">
+                {PROVIDER_LABEL[user.provider] ?? user.provider}
+              </Descriptions.Item>
               <Descriptions.Item label="상태">
-                <StatusTag status={status} />
+                <StatusTag status={status} kind="user" />
               </Descriptions.Item>
               <Descriptions.Item label="가입일">{user.joinedAt}</Descriptions.Item>
               <Descriptions.Item label="최근 접속">{user.lastSeenAt}</Descriptions.Item>
@@ -112,13 +115,13 @@ export function UserDetailPage() {
                 disabled={status === "suspended"}
                 onClick={() => changeStatus("suspended", "계정을 정지하면 로그인·경주 참가가 제한됩니다.")}
               >
-                계정 정지 (suspended)
+                계정 정지
               </Button>
               <Button
                 disabled={status === "active"}
                 onClick={() => changeStatus("active", "정지를 해제하면 정상 이용이 가능합니다.")}
               >
-                정지 해제 (active)
+                정지 해제
               </Button>
             </Space>
             <div style={{ marginTop: 8 }}>
@@ -130,8 +133,8 @@ export function UserDetailPage() {
         </Col>
 
         <Col xs={24} lg={12}>
-          <Card title="경주 참가 이력" style={{ height: "100%" }}>
-            <Table<UserParticipation>
+          <Card className="fill-col" title="경주 참가 이력" style={{ height: "100%" }}>
+            <FitTable<UserParticipation>
               columns={historyColumns}
               dataSource={getParticipations(userId)}
               rowKey="roomTitle"
@@ -141,6 +144,6 @@ export function UserDetailPage() {
           </Card>
         </Col>
       </Row>
-    </Space>
+    </div>
   );
 }

@@ -1,0 +1,83 @@
+/* 백오피스는 항상 뷰포트에 꽉 차며 페이지 전체 스크롤이 없다.
+   넘치는 목록은 각 테이블 본문이 내부에서 스크롤한다. */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+}
+
+/* FitTable — 남은 세로 공간을 채우고 tbody 만 스크롤시킨다.
+   antd 는 scroll.y 가 있어야 header/body 를 분리해 렌더하므로 FitTable 이
+   scroll={{ y: 1 }} 를 넘기고, 실제 높이는 아래 flex 규칙이 정한다. */
+.fit-table,
+.fit-table .ant-table-wrapper,
+.fit-table .ant-spin,
+.fit-table .ant-spin-container,
+.fit-table .ant-table,
+.fit-table .ant-table-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.fit-table .ant-table-body {
+  flex: 1;
+  min-height: 0;
+  /* antd 가 인라인으로 박는 max-height 를 무력화한다. */
+  max-height: none !important;
+  overflow-y: auto !important;
+}
+
+/* 페이지네이션은 테이블 바깥 고정 영역이므로 줄어들지 않게. */
+.fit-table .ant-table-wrapper .ant-pagination {
+  flex: none;
+}
+
+/* 페이지 루트 — 컨텐츠 영역 높이를 그대로 채우는 세로 flex.
+   높이를 다 먹어야 하는 자식(보통 테이블 카드)에 .page-fill 을 준다. */
+.page-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+}
+
+.page-column > .page-fill {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-fill > .ant-card-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Row/Col 안에서 카드가 열 높이를 채우고 그 안 테이블만 스크롤할 때.
+   Row 는 가로 배치를 유지해야 하므로 위 .page-fill 의 column 방향을 되돌린다. */
+.page-fill.ant-row {
+  flex: 1;
+  min-height: 0;
+  flex-direction: row;
+}
+
+.fill-col,
+.fill-col > .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.fill-col > .ant-card-body {
+  flex: 1;
+}

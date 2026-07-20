@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
-import { Button, Card, Input, Space, Table, Tag, Typography } from "antd";
+import { Button, Card, Input, Space, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useNavigate } from "react-router-dom";
 import { StatusTag } from "../components/StatusTag";
+import { FitTable } from "../components/FitTable";
+import { ROOM_STATUS_LABEL } from "../labels";
 import { mockRooms } from "../mock/rooms";
 import type { AdminRoom, RoomStatus } from "../mock/types";
 
@@ -11,11 +13,11 @@ const { CheckableTag } = Tag;
 
 const FILTERS: { value: RoomStatus | "all"; label: string }[] = [
   { value: "all", label: "전체" },
-  { value: "recruiting", label: "recruiting" },
-  { value: "ready", label: "ready" },
-  { value: "live", label: "live" },
-  { value: "finished", label: "finished" },
-  { value: "cancelled", label: "cancelled" },
+  { value: "recruiting", label: ROOM_STATUS_LABEL.recruiting },
+  { value: "ready", label: ROOM_STATUS_LABEL.ready },
+  { value: "live", label: ROOM_STATUS_LABEL.live },
+  { value: "finished", label: ROOM_STATUS_LABEL.finished },
+  { value: "cancelled", label: ROOM_STATUS_LABEL.cancelled },
 ];
 
 export function RoomListPage() {
@@ -43,7 +45,7 @@ export function RoomListPage() {
       title: "상태",
       dataIndex: "status",
       key: "status",
-      render: (s: RoomStatus) => <StatusTag status={s} />,
+      render: (s: RoomStatus) => <StatusTag status={s} kind="room" />,
     },
     {
       title: "정원",
@@ -64,7 +66,7 @@ export function RoomListPage() {
   ];
 
   return (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+    <div className="page-column">
       <Title level={4} style={{ margin: 0 }}>
         방(경주) 관리
       </Title>
@@ -91,8 +93,8 @@ export function RoomListPage() {
         />
       </Space>
 
-      <Card styles={{ body: { padding: 0 } }}>
-        <Table<AdminRoom>
+      <Card className="page-fill" styles={{ body: { padding: 0 } }}>
+        <FitTable<AdminRoom>
           columns={columns}
           dataSource={filtered}
           rowKey="id"
@@ -104,6 +106,6 @@ export function RoomListPage() {
           }}
         />
       </Card>
-    </Space>
+    </div>
   );
 }

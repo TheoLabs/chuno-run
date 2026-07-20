@@ -79,8 +79,13 @@ export function AdminLayout() {
   ];
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
-      <Sider theme="light" width={200} style={{ borderRight: "1px solid #f0f0f0" }}>
+    // 페이지 전체 스크롤 없음 — 뷰포트 높이에 고정하고, 넘치는 건 내부 영역이 스크롤한다.
+    <Layout style={{ height: "100vh", overflow: "hidden" }}>
+      <Sider
+        theme="light"
+        width={200}
+        style={{ borderRight: "1px solid #f0f0f0", overflow: "auto" }}
+      >
         <div
           style={{
             fontWeight: 700,
@@ -104,12 +109,13 @@ export function AdminLayout() {
           }}
         />
       </Sider>
-      <Layout>
+      <Layout style={{ minWidth: 0 }}>
         <Header
           style={{
             background: "#fff",
             borderBottom: "1px solid #f0f0f0",
             padding: "0 24px",
+            flex: "none",
             display: "flex",
             alignItems: "center",
             justifyContent: "flex-end",
@@ -121,7 +127,16 @@ export function AdminLayout() {
             </Text>
           </Dropdown>
         </Header>
-        <Content style={{ padding: 24, overflow: "auto" }}>
+        {/* 각 페이지는 이 flex 컬럼 안에서 높이를 나눠 갖는다. */}
+        <Content
+          style={{
+            padding: 24,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+          }}
+        >
           <Outlet />
         </Content>
       </Layout>

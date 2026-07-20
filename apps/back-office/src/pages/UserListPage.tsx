@@ -1,19 +1,21 @@
 import { useMemo, useState } from "react";
-import { Button, Card, Input, Select, Space, Table, Typography } from "antd";
+import { Button, Card, Input, Select, Space, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useNavigate } from "react-router-dom";
 import { StatusTag } from "../components/StatusTag";
+import { FitTable } from "../components/FitTable";
 import { mockUsers } from "../mock/users";
-import type { AdminUser, UserStatus } from "../mock/types";
+import { PROVIDER_LABEL } from "../labels";
+import type { AdminUser, Provider, UserStatus } from "../mock/types";
 
 const { Title } = Typography;
 
 const STATUS_OPTIONS: { value: UserStatus | "all"; label: string }[] = [
   { value: "all", label: "상태: 전체" },
-  { value: "active", label: "active" },
-  { value: "suspended", label: "suspended" },
-  { value: "onboarding", label: "onboarding" },
-  { value: "exited", label: "exited" },
+  { value: "active", label: "상태: 활성" },
+  { value: "suspended", label: "상태: 정지" },
+  { value: "onboarding", label: "상태: 온보딩" },
+  { value: "exited", label: "상태: 탈퇴" },
 ];
 
 export function UserListPage() {
@@ -42,12 +44,17 @@ export function UserListPage() {
       key: "nickname",
       render: (nickname: string | null) => nickname ?? "(미설정)",
     },
-    { title: "provider", dataIndex: "provider", key: "provider" },
+    {
+      title: "가입 경로",
+      dataIndex: "provider",
+      key: "provider",
+      render: (p: Provider) => PROVIDER_LABEL[p] ?? p,
+    },
     {
       title: "상태",
       dataIndex: "status",
       key: "status",
-      render: (s: UserStatus) => <StatusTag status={s} />,
+      render: (s: UserStatus) => <StatusTag status={s} kind="user" />,
     },
     { title: "가입일", dataIndex: "joinedAt", key: "joinedAt" },
     {
@@ -63,7 +70,7 @@ export function UserListPage() {
   ];
 
   return (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+    <div className="page-column">
       <Title level={4} style={{ margin: 0 }}>
         사용자 관리
       </Title>
@@ -87,8 +94,8 @@ export function UserListPage() {
         </Button>
       </Space.Compact>
 
-      <Card styles={{ body: { padding: 0 } }}>
-        <Table<AdminUser>
+      <Card className="page-fill" styles={{ body: { padding: 0 } }}>
+        <FitTable<AdminUser>
           columns={columns}
           dataSource={filtered}
           rowKey="id"
@@ -100,6 +107,6 @@ export function UserListPage() {
           }}
         />
       </Card>
-    </Space>
+    </div>
   );
 }

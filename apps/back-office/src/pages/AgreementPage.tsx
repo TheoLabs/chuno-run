@@ -7,12 +7,11 @@ import {
   Input,
   Modal,
   Select,
-  Space,
-  Table,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { StatusTag } from "../components/StatusTag";
+import { FitTable } from "../components/FitTable";
 import { mockAgreements } from "../mock/agreements";
 import type { Agreement, AgreementType } from "../mock/types";
 
@@ -41,7 +40,7 @@ export function AgreementPage() {
   const activate = (target: Agreement) => {
     modal.confirm({
       title: `${target.type} ${target.version} 버전을 활성화할까요?`,
-      content: "같은 유형의 기존 active 버전은 archived 처리됩니다.",
+      content: "같은 유형의 기존 활성 버전은 만료 처리됩니다.",
       okText: "활성화",
       cancelText: "취소",
       onOk: () => {
@@ -74,7 +73,7 @@ export function AgreementPage() {
         },
         ...prev,
       ]);
-      message.success("새 약관 버전을 등록했습니다. (pending)");
+      message.success("새 약관 버전을 등록했습니다. (대기)");
       form.resetFields();
       setOpen(false);
     });
@@ -93,7 +92,7 @@ export function AgreementPage() {
       title: "상태",
       dataIndex: "status",
       key: "status",
-      render: (s: string) => <StatusTag status={s} />,
+      render: (s: string) => <StatusTag status={s} kind="agreement" />,
     },
     { title: "시행일", dataIndex: "effectiveDate", key: "effectiveDate" },
     {
@@ -123,7 +122,7 @@ export function AgreementPage() {
   ];
 
   return (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+    <div className="page-column">
       <Title level={4} style={{ margin: 0 }}>
         약관 관리
       </Title>
@@ -132,15 +131,15 @@ export function AgreementPage() {
         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
       >
         <Text type="secondary" style={{ fontSize: 12 }}>
-          타입당 active 버전은 1개만 유지됩니다. 새 버전 활성화 시 이전 버전은 archived.
+          타입당 활성 버전은 1개만 유지됩니다. 새 버전 활성화 시 이전 버전은 만료 처리됩니다.
         </Text>
         <Button type="primary" onClick={() => setOpen(true)}>
           + 새 버전 등록
         </Button>
       </div>
 
-      <Card styles={{ body: { padding: 0 } }}>
-        <Table<Agreement>
+      <Card className="page-fill" styles={{ body: { padding: 0 } }}>
+        <FitTable<Agreement>
           columns={columns}
           dataSource={rows}
           rowKey="id"
@@ -153,7 +152,7 @@ export function AgreementPage() {
         open={open}
         onOk={submit}
         onCancel={() => setOpen(false)}
-        okText="등록(pending)"
+        okText="등록(대기)"
         cancelText="취소"
         destroyOnHidden
       >
@@ -180,6 +179,6 @@ export function AgreementPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </Space>
+    </div>
   );
 }

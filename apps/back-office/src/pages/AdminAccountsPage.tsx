@@ -6,12 +6,11 @@ import {
   Form,
   Input,
   Modal,
-  Space,
-  Table,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { StatusTag } from "../components/StatusTag";
+import { FitTable } from "../components/FitTable";
 import { mockAdminAccounts } from "../mock/admins";
 import type { AdminAccount } from "../mock/types";
 
@@ -74,7 +73,7 @@ export function AdminAccountsPage() {
       title: "상태",
       dataIndex: "status",
       key: "status",
-      render: (s: string) => <StatusTag status={s} />,
+      render: (s: string) => <StatusTag status={s} kind="admin" />,
     },
     { title: "생성일", dataIndex: "createdAt", key: "createdAt" },
     {
@@ -99,7 +98,7 @@ export function AdminAccountsPage() {
   ];
 
   return (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+    <div className="page-column">
       <Title level={4} style={{ margin: 0 }}>
         관리자 계정 관리
       </Title>
@@ -115,8 +114,8 @@ export function AdminAccountsPage() {
         </Button>
       </div>
 
-      <Card styles={{ body: { padding: 0 } }}>
-        <Table<AdminAccount>
+      <Card className="page-fill" styles={{ body: { padding: 0 } }}>
+        <FitTable<AdminAccount>
           columns={columns}
           dataSource={rows}
           rowKey="id"
@@ -152,6 +151,6 @@ export function AdminAccountsPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </Space>
+    </div>
   );
 }

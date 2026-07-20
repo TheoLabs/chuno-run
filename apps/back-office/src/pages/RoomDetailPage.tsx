@@ -5,13 +5,13 @@ import {
   Card,
   Descriptions,
   Space,
-  Table,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { useNavigate, useParams } from "react-router-dom";
 import { StatusTag } from "../components/StatusTag";
+import { FitTable } from "../components/FitTable";
 import { getRoomById, mockParticipants, mockResults } from "../mock/rooms";
 import type { RoomParticipant, RoomResult, RoomStatus } from "../mock/types";
 
@@ -24,7 +24,7 @@ const participantColumns: ColumnsType<RoomParticipant> = [
     title: "상태",
     dataIndex: "status",
     key: "status",
-    render: (s: string) => <StatusTag status={s} />,
+    render: (s: string) => <StatusTag status={s} kind="participation" />,
   },
   { title: "현재 거리", dataIndex: "currentDistance", key: "currentDistance" },
   { title: "완주 시각", dataIndex: "finishedAt", key: "finishedAt" },
@@ -76,7 +76,7 @@ export function RoomDetailPage() {
   const isFinished = status === "finished";
 
   return (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+    <div className="page-column">
       <Space align="center">
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/rooms")} />
         <Title level={4} style={{ margin: 0 }}>
@@ -86,7 +86,7 @@ export function RoomDetailPage() {
 
       <Card
         title="방 정보"
-        extra={<StatusTag status={status} />}
+        extra={<StatusTag status={status} kind="room" />}
       >
         <Descriptions column={{ xs: 1, md: 2 }} size="small">
           <Descriptions.Item label="방장">
@@ -114,8 +114,8 @@ export function RoomDetailPage() {
         </Space>
       </Card>
 
-      <Card title={`참가자 (${mockParticipants.length})`}>
-        <Table<RoomParticipant>
+      <Card className="page-fill" title={`참가자 (${mockParticipants.length})`}>
+        <FitTable<RoomParticipant>
           columns={participantColumns}
           dataSource={mockParticipants}
           rowKey="nickname"
@@ -125,15 +125,16 @@ export function RoomDetailPage() {
       </Card>
 
       <Card
+        className="page-fill"
         title="경주 결과"
-        extra={<Text type="secondary" style={{ fontSize: 12 }}>종료(finished) 방에서만 표시</Text>}
+        extra={<Text type="secondary" style={{ fontSize: 12 }}>종료된 방에서만 표시</Text>}
       >
         <Text type="secondary" style={{ fontSize: 12 }}>
           방이 종료되면 참가자 최종 순위·기록·페이스·거리가 여기에 표시됩니다. (별도 결과 페이지 없이 방 상세에 통합)
         </Text>
-        <div style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 12, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           {isFinished ? (
-            <Table<RoomResult>
+            <FitTable<RoomResult>
               columns={resultColumns}
               dataSource={mockResults}
               rowKey="nickname"
@@ -147,6 +148,6 @@ export function RoomDetailPage() {
           )}
         </div>
       </Card>
-    </Space>
+    </div>
   );
 }

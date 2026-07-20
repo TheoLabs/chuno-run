@@ -1,6 +1,7 @@
-import { Card, Col, Row, Space, Statistic, Table, Typography } from "antd";
+import { Card, Col, Row, Space, Statistic, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { StatusTag } from "../components/StatusTag";
+import { FitTable } from "../components/FitTable";
 import {
   mockKpis,
   mockRecentRaces,
@@ -17,7 +18,7 @@ const columns: ColumnsType<RecentRace> = [
     title: "상태",
     dataIndex: "status",
     key: "status",
-    render: (status: RoomStatus) => <StatusTag status={status} />,
+    render: (status: RoomStatus) => <StatusTag status={status} kind="room" />,
   },
   { title: "참가", dataIndex: "joined", key: "joined" },
   { title: "시작", dataIndex: "startAt", key: "startAt" },
@@ -25,7 +26,7 @@ const columns: ColumnsType<RecentRace> = [
 
 export function DashboardPage() {
   return (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+    <div className="page-column">
       <Title level={4} style={{ margin: 0 }}>
         대시보드
       </Title>
@@ -40,8 +41,8 @@ export function DashboardPage() {
         ))}
       </Row>
 
-      <Card title="최근 경주">
-        <Table<RecentRace>
+      <Card className="page-fill" title="최근 경주">
+        <FitTable<RecentRace>
           columns={columns}
           dataSource={mockRecentRaces}
           rowKey="title"
@@ -54,12 +55,12 @@ export function DashboardPage() {
         <Space size="large" wrap>
           {(Object.keys(mockRoomStatusCounts) as RoomStatus[]).map((status) => (
             <Space key={status} size={6}>
-              <StatusTag status={status} />
+              <StatusTag status={status} kind="room" />
               <Text>{mockRoomStatusCounts[status]}</Text>
             </Space>
           ))}
         </Space>
       </Card>
-    </Space>
+    </div>
   );
 }
