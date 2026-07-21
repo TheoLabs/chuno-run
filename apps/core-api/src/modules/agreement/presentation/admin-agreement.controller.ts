@@ -13,6 +13,8 @@ export class AdminAgreementController {
     // 1. Destructure body, params, query
     // 2. Get context
     // 3. Get result
+    await this.adminAgreementService.create(body);
+
     // 4. Send response
     return { data: {} };
   }
