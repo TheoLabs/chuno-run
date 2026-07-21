@@ -42,12 +42,6 @@ export class Admin extends DddAggregate {
     return new Admin(args);
   }
 
-  /**
-   * 로컬 mock 구글 로그인의 도메인 규칙.
-   * - 비활성(DISABLED) 계정은 로그인 거부(403).
-   * - 최초 로그인 시 구글 신원(googleSub)을 바인딩한다. sub 가 오면 그 값, 없으면 email 기반 결정적 값.
-   * - name 이 비어 있고 요청에 name 이 오면 채운다.
-   */
   signInWithGoogle(identity: { sub?: string; name?: string }) {
     if (this.status === AdminStatus.DISABLED) {
       throw new ForbiddenException('비활성화된 관리자 계정입니다.', {
@@ -55,8 +49,8 @@ export class Admin extends DddAggregate {
       });
     }
 
-    if (!this.googleSub) {
-      this.googleSub = identity.sub?.trim() || `google_${this.email}`;
+    if (!this.googleSub && identity.sub?.trim()) {
+      this.googleSub = identity.sub.trim();
     }
 
     if (!this.name && identity.name?.trim()) {

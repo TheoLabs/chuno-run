@@ -6,7 +6,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { setAuthToken } from "../api/client";
 import { fetchMe, googleLogin } from "../api/auth";
-import type { Admin, GoogleLoginInput } from "../api/auth";
+import type { Admin } from "../api/auth";
 
 const STORAGE_KEY = "chuno.backoffice.auth";
 
@@ -22,7 +22,8 @@ interface AuthContextValue {
   accessToken: string | null;
   /** loading: 세션 복구 중, authenticated/unauthenticated: 확정 상태. */
   status: AuthStatus;
-  login: (input: GoogleLoginInput) => Promise<void>;
+  /** 구글 ID token 으로 로그인한다. */
+  login: (idToken: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -91,12 +92,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [initial]);
 
   const value = useMemo<AuthContextValue>(() => {
-    const login = async (input: GoogleLoginInput): Promise<void> => {
-      const result = await googleLogin(input);
-      setAuthToken(result.accessToken);
-      setAccessToken(result.accessToken);
-      setAdmin(result.admin);
-      writeStored({ accessToken: result.accessToken, admin: result.admin });
+    const login = async (idToken: string): Promise<void> => {
+      // 로그인 응답에는 accessToken 만 온다. 토큰을 세팅한 뒤 /me 로 관리자 정보를 조회한다.
+      const { accessToken: token } = await googleLogin({ idToken });
+      setAuthToken(token);
+      try {
+        const profile = await fetchMe();
+        const next: Admin = {
+          id: profile.id,
+          email: profile.email,
+          name: profile.name,
+          status: profile.status,
+        };
+        setAccessToken(token);
+        setAdmin(next);
+        writeStored({ accessToken: token, admin: next });
+      } catch (err) {
+        // 토큰은 받았으나 프로필 조회 실패 → 토큰 폐기하고 에러 전파(로그인 화면에서 표시).
+        setAuthToken(null);
+        throw err;
+      }
     };
 
     const logout = (): void => {

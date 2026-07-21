@@ -1,19 +1,11 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 /**
- * 로컬 mock 구글 로그인 요청 DTO.
- * 실제 OAuth 콜백에서 구글이 검증해 돌려줄 신원(이메일/이름/sub)을 로컬에서 이 요청이 대신한다.
+ * 관리자 구글 로그인 요청 DTO.
+ * 프론트가 구글 로그인으로 받은 ID token 을 그대로 전달하면, 서버가 구글로 검증한다.
  */
 export class AdminGoogleLoginDto {
-  @IsEmail()
+  @IsString()
   @IsNotEmpty()
-  email: string;
-
-  @IsOptional()
-  @IsString()
-  name?: string;
-
-  @IsOptional()
-  @IsString()
-  sub?: string;
+  idToken: string;
 }

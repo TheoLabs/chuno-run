@@ -4,9 +4,10 @@ import { GeneralAuthController } from './presentation/general-auth.controller';
 import { GeneralAuthService } from './applications/general-auth.service';
 import { AdminAuthController } from './presentation/admin-auth.controller';
 import { AdminAuthService } from './applications/admin-auth.service';
+import { GoogleModule } from '@libs/google';
 
 @Module({
-  imports: [AdminModule],
+  imports: [AdminModule, GoogleModule],
   controllers: [GeneralAuthController, AdminAuthController],
   providers: [GeneralAuthService, AdminAuthService],
   exports: [GeneralAuthService, AdminAuthService],

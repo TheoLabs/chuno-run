@@ -13,11 +13,16 @@ export interface KafkaConfig {
   topic: string;
 }
 
+export interface GoogleConfig {
+  clientId: string;
+}
+
 interface AppConfig {
   mysql: DataSourceOptions;
   jwt: JwtConfig;
   kafka: KafkaConfig;
   redis: RedisOptions;
+  google: GoogleConfig;
 }
 
 export default (env: Record<string, any> = process.env): AppConfig => ({
@@ -45,5 +50,8 @@ export default (env: Record<string, any> = process.env): AppConfig => ({
   redis: {
     host: env.REDIS_HOST,
     port: Number(env.REDIS_PORT),
+  },
+  google: {
+    clientId: env.GOOGLE_CLIENT_ID,
   },
 });

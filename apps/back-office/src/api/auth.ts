@@ -19,19 +19,18 @@ export interface AdminProfile extends Admin {
 }
 
 export interface GoogleLoginInput {
-  email: string;
-  name?: string;
-  sub?: string;
+  /** Google Identity Services 로 발급받은 ID token (JWT). */
+  idToken: string;
 }
 
 export interface GoogleLoginResult {
   accessToken: string;
-  admin: Admin;
 }
 
 /**
- * 로컬 mock 구글 로그인. 실제 OAuth 리다이렉트 대신 "구글이 검증해 돌려준 이메일"을
- * 그대로 서버에 전달한다. 성공 시 액세스 토큰 + 관리자 정보를 반환한다.
+ * 구글 로그인. 브라우저에서 Google Identity Services 로 받은 ID token 을 서버에 전달한다.
+ * 서버가 토큰을 검증하고 등록/활성 여부를 판정해 액세스 토큰을 반환한다.
+ * (관리자 정보는 GET /me 로 별도 조회. 미등록/미인증 → 401, 비활성 → 403)
  */
 export function googleLogin(input: GoogleLoginInput): Promise<GoogleLoginResult> {
   return apiRequest<GoogleLoginResult>("/admins/auth/google", {
