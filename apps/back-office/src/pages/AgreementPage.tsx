@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   App,
+  Badge,
   Button,
   Card,
   DatePicker,
@@ -11,6 +13,7 @@ import {
   Radio,
   Select,
   Space,
+  Spin,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -19,7 +22,15 @@ import type { ColumnsType } from "antd/es/table";
 import { dayjs } from "@chuno/date";
 import { StatusTag } from "../components/StatusTag";
 import { FitTable } from "../components/FitTable";
-import { mockAgreements } from "../mock/agreements";
+import {
+  activateAgreement,
+  createAgreement,
+  getAgreement,
+  listAgreements,
+  updateAgreement,
+} from "../api/agreements";
+import type { UpdateAgreementInput } from "../api/agreements";
+import { ApiError } from "../api/client";
 import type { Agreement, AgreementType } from "../mock/types";
 
 const { Title, Text, Paragraph } = Typography;
@@ -37,12 +48,20 @@ const dateFieldValueProps = (value?: string) => ({
 const normalizeDate = (value: Dayjs | null) =>
   value ? value.format(DATE_FORMAT) : "";
 
-const TYPE_OPTIONS: { value: AgreementType; label: string }[] = [
-  { value: "service", label: "service" },
-  { value: "privacy", label: "privacy" },
-  { value: "location", label: "location" },
-  { value: "marketing", label: "marketing" },
-];
+// 약관 유형 → 한국어 표시 라벨. (표·상세·셀렉트·확인 다이얼로그 등 유형 노출 지점에 공통 사용)
+const TYPE_LABELS: Record<AgreementType, string> = {
+  service: "서비스 이용",
+  privacy: "개인 정보",
+  location: "위치 정보 수집",
+  marketing: "마케팅 동의",
+};
+
+const typeLabel = (type: AgreementType) => TYPE_LABELS[type] ?? type;
+
+const TYPE_OPTIONS = (Object.keys(TYPE_LABELS) as AgreementType[]).map((value) => ({
+  value,
+  label: TYPE_LABELS[value],
+}));
 
 interface NewAgreementForm {
   type: AgreementType;
@@ -51,6 +70,9 @@ interface NewAgreementForm {
   effectiveDate: string;
   body: string;
 }
+
+// 서버 version 검증(@Matches)과 동일: 숫자와 점으로만 구성. (예: 1, 1.0, 1.2.3)
+const VERSION_PATTERN = /^\d+(\.\d+)*$/;
 
 interface EditAgreementForm {
   effectiveDate: string;
@@ -72,50 +94,122 @@ const docBoxStyle: React.CSSProperties = {
 
 export function AgreementPage() {
   const { modal, message } = App.useApp();
-  const [rows, setRows] = useState<Agreement[]>(mockAgreements);
+  // 목록·상세·등록·수정·활성화 모두 core-api 실연동. rows는 목록 조회(GET /admins/agreements) 결과다.
+  const [rows, setRows] = useState<Agreement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadAgreements = useCallback((signal?: AbortSignal) => {
+    setLoading(true);
+    setLoadError(null);
+    return listAgreements(signal)
+      .then((items) => {
+        setRows(items);
+      })
+      .catch((err) => {
+        if (signal?.aborted) return;
+        const messageText =
+          err instanceof ApiError ? err.message : "약관 목록을 불러오지 못했습니다.";
+        setLoadError(messageText);
+      })
+      .finally(() => {
+        if (!signal?.aborted) setLoading(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadAgreements(controller.signal);
+    return () => controller.abort();
+  }, [loadAgreements]);
 
   // 새 버전 등록 모달
   const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [createForm] = Form.useForm<NewAgreementForm>();
 
   // 상세 보기 / 수정 모달
+  // 상세는 목록 row가 아니라 GET /admins/agreements/:id 응답을 기준으로 렌더한다.
   const [viewingId, setViewingId] = useState<number | null>(null);
+  const [detail, setDetail] = useState<Agreement | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [editForm] = Form.useForm<EditAgreementForm>();
-
-  const viewing = useMemo(
-    () => rows.find((r) => r.id === viewingId) ?? null,
-    [rows, viewingId],
-  );
-  const editablePending = viewing?.status === "pending";
+  // 열려 있는 상세 조회를 취소하기 위한 컨트롤러. (닫기·다른 항목 열기 시 이전 요청 중단)
+  const detailAbortRef = useRef<AbortController | null>(null);
 
   const openView = (record: Agreement) => {
+    detailAbortRef.current?.abort();
+    const controller = new AbortController();
+    detailAbortRef.current = controller;
+
     setViewingId(record.id);
     setEditing(false);
+    setDetail(null);
+    setDetailError(null);
+    setDetailLoading(true);
+
+    getAgreement(record.id, controller.signal)
+      .then((agreement) => {
+        if (controller.signal.aborted) return;
+        setDetail(agreement);
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        const messageText =
+          err instanceof ApiError ? err.message : "약관 상세를 불러오지 못했습니다.";
+        setDetailError(messageText);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setDetailLoading(false);
+      });
+  };
+
+  // 상세를 조용히 재조회한다. (수정 저장 후 최신화용 — 스피너로 모달을 비우지 않는다.)
+  const refreshDetail = (id: number) => {
+    detailAbortRef.current?.abort();
+    const controller = new AbortController();
+    detailAbortRef.current = controller;
+    return getAgreement(id, controller.signal)
+      .then((agreement) => {
+        if (!controller.signal.aborted) setDetail(agreement);
+      })
+      .catch(() => {
+        // 재조회 실패는 치명적이지 않으므로 조용히 무시한다. (목록 재조회로 보완)
+      });
   };
 
   const closeView = () => {
+    detailAbortRef.current?.abort();
+    detailAbortRef.current = null;
     setViewingId(null);
+    setDetail(null);
+    setDetailError(null);
+    setDetailLoading(false);
     setEditing(false);
   };
 
   const startEdit = () => {
-    if (!viewing) return;
+    if (!detail) return;
     editForm.setFieldsValue({
-      effectiveDate: viewing.effectiveDate,
-      body: viewing.body ?? "",
+      effectiveDate: detail.effectiveDate,
+      body: detail.body ?? "",
     });
     setEditing(true);
   };
 
   const saveEdit = () => {
-    if (!viewing) return;
-    editForm.validateFields().then((values) => {
-      // 원본 대비 실제로 바뀐 값만 반영한다. (시행일은 대기중일 때만 편집 가능)
-      const patch: Partial<Agreement> = {};
-      if ((values.body ?? "") !== (viewing.body ?? "")) patch.body = values.body;
-      if (editablePending && values.effectiveDate !== viewing.effectiveDate)
-        patch.effectiveDate = values.effectiveDate;
+    if (!detail) return;
+    const target = detail;
+    editForm.validateFields().then(async (values) => {
+      // 수정 실연동(PUT /admins/agreements/:id): 원본 대비 바뀐 필드만 patch로 전송한다.
+      // 대기중(pending) 약관만 수정 가능하므로 본문·시행일 모두 편집 대상이다.
+      const patch: UpdateAgreementInput = {};
+      if ((values.body ?? "") !== (target.body ?? "")) patch.content = values.body;
+      if (values.effectiveDate !== target.effectiveDate)
+        patch.expectedActivatedOn = values.effectiveDate;
 
       if (Object.keys(patch).length === 0) {
         message.info("변경된 내용이 없습니다.");
@@ -123,64 +217,96 @@ export function AgreementPage() {
         return;
       }
 
-      setRows((prev) =>
-        prev.map((r) => (r.id === viewing.id ? { ...r, ...patch } : r)),
-      );
-      message.success(`${viewing.type} ${viewing.version} 약관을 수정했습니다.`);
-      setEditing(false);
+      setSaving(true);
+      try {
+        await updateAgreement(target.id, patch);
+        message.success(`${typeLabel(target.type)} ${target.version} 약관을 수정했습니다.`);
+        setEditing(false);
+        // 서버 반영분을 다시 읽어 상세·목록을 최신화한다.
+        await Promise.all([refreshDetail(target.id), loadAgreements()]);
+      } catch (err) {
+        const messageText =
+          err instanceof ApiError ? err.message : "약관 수정에 실패했습니다.";
+        message.error(messageText);
+      } finally {
+        setSaving(false);
+      }
     });
   };
 
   const activate = (target: Agreement) => {
+    // 활성화 실연동(PUT /admins/agreements/:id/active): 대상 pending → active,
+    // 같은 type의 기존 active → archived 로 서버가 원자적으로 전이한다.
+    // 약관은 시행일에 스케줄러가 자동 활성화한다. 여기서는 "수동 활성화"이므로 확인 다이얼로그로 진행한다.
     modal.confirm({
-      title: `${target.type} ${target.version} 버전을 활성화할까요?`,
-      content: "같은 유형의 기존 활성(active) 버전은 만료(archived) 처리됩니다.",
+      title: `${typeLabel(target.type)} ${target.version} 을(를) 지금 수동으로 활성화할까요?`,
+      content:
+        "이 약관은 시행일에 자동 활성화됩니다. 지금 수동으로 활성화하면 같은 유형의 기존 활성(active) 버전은 보관(archived) 처리되어 타입당 active 버전 1개가 유지됩니다.",
       okText: "활성화",
       cancelText: "취소",
-      onOk: () => {
-        setRows((prev) =>
-          prev.map((r) => {
-            if (r.id === target.id) return { ...r, status: "active" };
-            // 같은 유형의 기존 active 버전 → archived
-            if (r.type === target.type && r.status === "active")
-              return { ...r, status: "archived" };
-            return r;
-          }),
-        );
-        message.success(`${target.type} ${target.version} 버전을 활성화했습니다.`);
+      onOk: async () => {
+        try {
+          await activateAgreement(target.id);
+          message.success(`${typeLabel(target.type)} ${target.version} 버전을 활성화했습니다.`);
+          // 서버 반영분(대상 + 기존 active 전이)을 다시 읽어 목록을 최신화한다.
+          await loadAgreements();
+          // 같은 약관 상세가 열려 있으면 상세도 최신화한다.
+          if (viewingId === target.id) await refreshDetail(target.id);
+        } catch (err) {
+          const messageText =
+            err instanceof ApiError ? err.message : "약관 활성화에 실패했습니다.";
+          message.error(messageText);
+          // confirm 이 자동으로 닫히지 않도록 에러를 다시 던진다. (다른 실연동 핸들러와 동일 패턴)
+          throw err;
+        }
       },
     });
   };
 
   const submitCreate = () => {
-    createForm.validateFields().then((values) => {
-      const nextId = Math.max(0, ...rows.map((r) => r.id)) + 1;
-      setRows((prev) => [
-        {
-          id: nextId,
+    // 등록만 실연동: 서버(POST /admins/agreements)에 생성 후 목록을 재조회한다.
+    // title은 별도 입력 없이 유형의 한글 라벨로 자동 설정한다.
+    createForm.validateFields().then(async (values) => {
+      setCreating(true);
+      try {
+        await createAgreement({
           type: values.type,
           version: values.version,
           required: values.required,
-          status: "pending",
-          effectiveDate: values.effectiveDate,
-          body: values.body,
-        },
-        ...prev,
-      ]);
-      message.success("새 약관 버전을 등록했습니다. (대기)");
-      createForm.resetFields();
-      setCreateOpen(false);
+          title: typeLabel(values.type),
+          content: values.body,
+          expectedActivatedOn: values.effectiveDate,
+        });
+        message.success("새 약관 버전을 등록했습니다. (대기)");
+        createForm.resetFields();
+        setCreateOpen(false);
+        // 서버가 부여한 새 pending 행을 반영하기 위해 목록을 다시 불러온다.
+        await loadAgreements();
+      } catch (err) {
+        const messageText =
+          err instanceof ApiError ? err.message : "약관 등록에 실패했습니다.";
+        message.error(messageText);
+      } finally {
+        setCreating(false);
+      }
     });
   };
 
   const columns: ColumnsType<Agreement> = [
-    { title: "유형", dataIndex: "type", key: "type" },
+    {
+      title: "유형",
+      dataIndex: "type",
+      key: "type",
+      render: (type: AgreementType) => typeLabel(type),
+    },
     { title: "버전", dataIndex: "version", key: "version" },
     {
-      title: "필수",
+      title: "필수 여부",
       dataIndex: "required",
       key: "required",
-      render: (required: boolean) => (required ? "필수" : "선택"),
+      // 색 점 + 한글: 필수는 강조(빨강), 선택은 파란계열(무채색 점은 화면에서 잘 안 보임).
+      render: (required: boolean) =>
+        required ? <Badge color="red" text="필수" /> : <Badge color="blue" text="선택" />,
     },
     {
       title: "상태",
@@ -222,10 +348,24 @@ export function AgreementPage() {
           타입당 활성(active) 버전은 1개만 유지됩니다. 새 버전 활성화 시 이전 버전은 만료(archived)
           처리되며, 활성화는 대기중(pending) 버전에만 가능합니다.
         </Text>
-        <Button type="primary" onClick={() => setCreateOpen(true)}>
+        <Button type="primary" onClick={() => setCreateOpen(true)} disabled={loading}>
           + 새 버전 등록
         </Button>
       </div>
+
+      {loadError && (
+        <Alert
+          type="error"
+          showIcon
+          message="약관 목록을 불러오지 못했습니다."
+          description={loadError}
+          action={
+            <Button size="small" onClick={() => loadAgreements()} loading={loading}>
+              다시 시도
+            </Button>
+          }
+        />
+      )}
 
       <Card className="page-fill" styles={{ body: { padding: 0 } }}>
         <FitTable<Agreement>
@@ -233,34 +373,53 @@ export function AgreementPage() {
           dataSource={rows}
           rowKey="id"
           pagination={false}
+          loading={loading}
         />
       </Card>
 
       {/* 상세 보기 / 수정 */}
       <Modal
-        title={viewing ? `${viewing.type} ${viewing.version}` : ""}
-        open={viewing !== null}
+        title={detail ? `${typeLabel(detail.type)} ${detail.version}` : "약관 상세"}
+        open={viewingId !== null}
         onCancel={closeView}
         destroyOnHidden
         footer={
-          editing ? (
+          // 상세 로딩 실패/조회 중에는 닫기만 노출한다.
+          !detail ? (
+            <Button onClick={closeView}>닫기</Button>
+          ) : editing ? (
             <Space>
-              <Button onClick={() => setEditing(false)}>취소</Button>
-              <Button type="primary" onClick={saveEdit}>
+              <Button onClick={() => setEditing(false)} disabled={saving}>
+                취소
+              </Button>
+              <Button type="primary" onClick={saveEdit} loading={saving}>
                 저장
               </Button>
             </Space>
           ) : (
             <Space>
               <Button onClick={closeView}>닫기</Button>
-              <Button type="primary" onClick={startEdit}>
-                수정
-              </Button>
+              {/* 수정은 대기중(pending) 약관에서만 가능하다. (서버 규칙과 일치) */}
+              {detail.status === "pending" && (
+                <Button type="primary" onClick={startEdit}>
+                  수정
+                </Button>
+              )}
             </Space>
           )
         }
       >
-        {viewing && (
+        {detailLoading && (
+          <div style={{ display: "flex", justifyContent: "center", padding: "32px 0" }}>
+            <Spin />
+          </div>
+        )}
+
+        {!detailLoading && detailError && (
+          <Alert type="error" showIcon message="약관 상세를 불러오지 못했습니다." description={detailError} />
+        )}
+
+        {!detailLoading && !detailError && detail && (
           <Form form={editForm} component={false}>
             <Descriptions
               column={1}
@@ -268,16 +427,17 @@ export function AgreementPage() {
               styles={{ label: { width: 80 } }}
               style={{ marginBottom: 16 }}
             >
-              <Descriptions.Item label="유형">{viewing.type}</Descriptions.Item>
-              <Descriptions.Item label="버전">{viewing.version}</Descriptions.Item>
+              <Descriptions.Item label="유형">{typeLabel(detail.type)}</Descriptions.Item>
+              <Descriptions.Item label="버전">{detail.version}</Descriptions.Item>
               <Descriptions.Item label="상태">
-                <StatusTag status={viewing.status} kind="agreement" />
+                <StatusTag status={detail.status} kind="agreement" />
               </Descriptions.Item>
               <Descriptions.Item label="필수 여부">
-                {viewing.required ? "필수" : "선택"}
+                {detail.required ? "필수" : "선택"}
               </Descriptions.Item>
               <Descriptions.Item label="시행일">
-                {editing && editablePending ? (
+                {/* 수정 모드는 pending 전용이므로 시행일도 항상 편집 가능하다. */}
+                {editing ? (
                   <>
                     <Form.Item
                       name="effectiveDate"
@@ -289,18 +449,11 @@ export function AgreementPage() {
                       <DatePicker format={DATE_FORMAT} style={{ maxWidth: 160 }} />
                     </Form.Item>
                     <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
-                      대기중 약관은 시행일 변경 가능
+                      시행 예정일은 미래 날짜여야 합니다.
                     </Text>
                   </>
                 ) : (
-                  <>
-                    {viewing.effectiveDate}
-                    {editing && (
-                      <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
-                        (시행일은 대기중 약관만 변경 가능)
-                      </Text>
-                    )}
-                  </>
+                  detail.effectiveDate
                 )}
               </Descriptions.Item>
             </Descriptions>
@@ -318,7 +471,7 @@ export function AgreementPage() {
               </Form.Item>
             ) : (
               <Paragraph style={{ ...docBoxStyle, marginTop: 6 }}>
-                {viewing.body ?? "본문 없음"}
+                {detail.body ?? "본문 없음"}
               </Paragraph>
             )}
           </Form>
@@ -333,6 +486,8 @@ export function AgreementPage() {
         onCancel={() => setCreateOpen(false)}
         okText="등록(대기)"
         cancelText="취소"
+        confirmLoading={creating}
+        maskClosable={!creating}
         destroyOnHidden
       >
         <Form<NewAgreementForm>
@@ -346,7 +501,13 @@ export function AgreementPage() {
           <Form.Item
             label="버전"
             name="version"
-            rules={[{ required: true, message: "버전을 입력하세요" }]}
+            rules={[
+              { required: true, message: "버전을 입력하세요" },
+              {
+                pattern: VERSION_PATTERN,
+                message: "숫자와 점(.)만, 예: 1.0, 1.2.3",
+              },
+            ]}
           >
             <Input placeholder="예: 1.2" />
           </Form.Item>

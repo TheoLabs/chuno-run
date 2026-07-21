@@ -1,7 +1,7 @@
 import { AdminGuard } from '@guards';
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AdminAgreementService } from '../applications/admin-agreement.service';
-import { AdminAgreementCreateDto, AdminAgreementQueryDto } from './dto';
+import { AdminAgreementCreateDto, AdminAgreementQueryDto, AdminAgreementUpdateDto } from './dto';
 
 @Controller('admins/agreements')
 @UseGuards(AdminGuard)
@@ -23,35 +23,44 @@ export class AdminAgreementController {
   async list(@Query() query: AdminAgreementQueryDto) {
     // 1. Destructure body, params, query
     const { types, statuses, required, ...options } = query;
+
     // 2. Get context
     // 3. Get result
+    const data = await this.adminAgreementService.list({ types, statuses, required }, options);
+
     // 4. Send response
-    return { data: {} };
+    return { data };
   }
 
-  @Get()
+  @Get(':id')
   async retrieve(@Param('id', ParseIntPipe) id: number) {
     // 1. Destructure body, params, query
     // 2. Get context
     // 3. Get result
+    const data = await this.adminAgreementService.retrieve({ id });
+
+    // 4. Send response
+    return { data };
+  }
+
+  @Put(':id')
+  async update(@Param('id', ParseIntPipe) id: number, @Body() body: AdminAgreementUpdateDto) {
+    // 1. Destructure body, params, query
+    // 2. Get context
+    // 3. Get result
+    await this.adminAgreementService.update({ id, ...body });
+
     // 4. Send response
     return { data: {} };
   }
 
-  @Put()
-  async update(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
+  @Put(':id/active')
+  async activate(@Param('id', ParseIntPipe) id: number) {
     // 1. Destructure body, params, query
     // 2. Get context
     // 3. Get result
-    // 4. Send response
-    return { data: {} };
-  }
+    await this.adminAgreementService.activate({ id });
 
-  @Delete()
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    // 1. Destructure body, params, query
-    // 2. Get context
-    // 3. Get result
     // 4. Send response
     return { data: {} };
   }

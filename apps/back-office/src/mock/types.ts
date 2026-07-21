@@ -73,6 +73,8 @@ export interface Agreement {
   status: AgreementStatus;
   effectiveDate: string;
   body?: string;
+  // API의 title 필드 보관용(현재 UI 미사용). 목록 실연동 시 매핑해 채운다.
+  title?: string;
 }
 
 export type AdminAccountStatus = "active" | "disabled";

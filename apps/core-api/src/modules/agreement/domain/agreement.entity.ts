@@ -1,6 +1,6 @@
 import { today } from '@libs/date';
 import { DddAggregate } from '@libs/ddd';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { CalendarDate } from '@types';
 import { zip } from 'lodash';
 import { Column, Entity, PrimaryGeneratedColumn, Unique } from 'typeorm';
@@ -100,5 +100,50 @@ export class Agreement extends DddAggregate {
         description: '동일한 버전의 약관은 등록할 수 없습니다.',
       });
     }
+  }
+
+  edit(args: { title?: string; content?: string; expectedActivatedOn?: CalendarDate; required?: boolean }) {
+    if (this.status !== AgreementStatus.PENDING) {
+      throw new BadRequestException('대기중 상태의 약관만 수정할 수 있습니다.', {
+        description: '대기중 상태의 약관만 수정할 수 있습니다.',
+      });
+    }
+
+    if (args.expectedActivatedOn !== undefined) {
+      if (args.expectedActivatedOn <= today()) {
+        throw new BadRequestException('시행 예정일은 현재보다 미래 날짜를 선택해야합니다.', {
+          description: '시행 예정일은 현재보다 미래 날짜를 선택해야합니다.',
+        });
+      }
+      this.expectedActivatedOn = args.expectedActivatedOn;
+    }
+
+    const changed = this.stripUnchanged(args);
+
+    if (!changed) {
+      return;
+    }
+
+    Object.assign(this, changed);
+  }
+
+  archive() {
+    if (this.status !== AgreementStatus.ACTIVE) {
+      throw new ConflictException('보관할 수 없습니다.', {
+        description: '오직 활성 중인 약관만 보관할 수 있습니다.',
+      });
+    }
+
+    this.status = AgreementStatus.ARCHIVED;
+  }
+
+  activate() {
+    if (this.status !== AgreementStatus.PENDING) {
+      throw new ConflictException('오직 대기 중인 약관만 활성화할 수 있습니다.', {
+        description: '오직 대기 중인 약관만 활성화할 수 있습니다.',
+      });
+    }
+
+    this.status = AgreementStatus.ACTIVE;
   }
 }
