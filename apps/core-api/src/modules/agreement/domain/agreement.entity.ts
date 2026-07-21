@@ -2,6 +2,7 @@ import { today } from '@libs/date';
 import { DddAggregate } from '@libs/ddd';
 import { BadRequestException } from '@nestjs/common';
 import { CalendarDate } from '@types';
+import { zip } from 'lodash';
 import { Column, Entity, PrimaryGeneratedColumn, Unique } from 'typeorm';
 
 export enum AgreementType {
@@ -75,5 +76,29 @@ export class Agreement extends DddAggregate {
     }
 
     return new Agreement(args);
+  }
+
+  static compareVersion(a: string, b: string): number {
+    const diff = zip(a.split('.').map(Number), b.split('.').map(Number))
+      .map(([x = 0, y = 0]) => x - y)
+      .find((d) => d !== 0);
+
+    return Math.sign(diff ?? 0);
+  }
+
+  validVersion(version: string) {
+    const cmp = Agreement.compareVersion(this.version, version);
+
+    if (cmp > 0) {
+      throw new BadRequestException('현재 등록된 버전보다 낮은 버전의 약관은 등록할 수 없습니다.', {
+        description: '현재 등록된 버전보다 낮은 버전의 약관은 등록할 수 없습니다.',
+      });
+    }
+
+    if (cmp === 0) {
+      throw new BadRequestException('동일한 버전의 약관은 등록할 수 없습니다.', {
+        description: '동일한 버전의 약관은 등록할 수 없습니다.',
+      });
+    }
   }
 }

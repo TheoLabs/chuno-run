@@ -13,7 +13,7 @@ export class AgreementRepository extends DddRepository<Agreement> {
       ids?: number[];
       types?: AgreementType[];
       version?: string;
-      required?: boolean;
+      required?: boolean[];
       statuses?: AgreementStatus[];
       expectedActivatedOn?: CalendarDate;
     },
@@ -24,7 +24,7 @@ export class AgreementRepository extends DddRepository<Agreement> {
         id: checkInValue(conditions.ids),
         type: checkInValue(conditions.types),
         version: conditions.version,
-        required: conditions.required,
+        required: checkInValue(conditions.required),
         status: checkInValue(conditions.statuses),
         expectedActivatedOn: conditions.expectedActivatedOn,
       }),
@@ -36,7 +36,7 @@ export class AgreementRepository extends DddRepository<Agreement> {
     ids?: number[];
     types?: AgreementType[];
     version?: string;
-    required?: boolean;
+    required?: boolean[];
     statuses?: AgreementStatus[];
     expectedActivatedOn?: CalendarDate;
   }) {
@@ -45,7 +45,7 @@ export class AgreementRepository extends DddRepository<Agreement> {
         id: checkInValue(conditions.ids),
         type: checkInValue(conditions.types),
         version: conditions.version,
-        required: conditions.required,
+        required: checkInValue(conditions.required),
         status: checkInValue(conditions.statuses),
         expectedActivatedOn: conditions.expectedActivatedOn,
       }),

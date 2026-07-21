@@ -23,6 +23,7 @@
     "seed:admin": "ts-node -r tsconfig-paths/register src/databases/seeds/seed-admin.ts"
   },
   "dependencies": {
+    "@chuno/date": "workspace:*",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^10.4.4",
     "@nestjs/config": "^4.0.4",
@@ -34,7 +35,6 @@
     "bullmq": "^5.80.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
-    "dayjs": "^1.11.21",
     "google-auth-library": "^10.9.0",
     "ioredis": "^5.11.1",
     "kafkajs": "^2.2.4",

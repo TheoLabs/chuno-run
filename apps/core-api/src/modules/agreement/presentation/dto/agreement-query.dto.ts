@@ -1,7 +1,7 @@
 import { ToArray } from '@libs/decorators';
 import { PaginationDto } from '@libs/utils';
-import { AgreementType } from '@modules/agreement/domain/agreement.entity';
-import { IsEnum, IsOptional } from 'class-validator';
+import { AgreementStatus, AgreementType } from '@modules/agreement/domain/agreement.entity';
+import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
 
 abstract class BaseAgreementQueryDto extends PaginationDto {
   @ToArray()
@@ -11,3 +11,15 @@ abstract class BaseAgreementQueryDto extends PaginationDto {
 }
 
 export class GeneralAgreementQueryDto extends BaseAgreementQueryDto {}
+
+export class AdminAgreementQueryDto extends BaseAgreementQueryDto {
+  @ToArray()
+  @IsEnum(AgreementStatus, { each: true })
+  @IsOptional()
+  statuses?: AgreementStatus[];
+
+  @ToArray('boolean')
+  @IsBoolean({ each: true })
+  @IsOptional()
+  required?: boolean[];
+}

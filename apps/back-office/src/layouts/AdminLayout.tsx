@@ -13,6 +13,7 @@ import {
   LogoutOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 
 const { Header, Sider, Content } = Layout;
@@ -48,9 +49,6 @@ const NAV_ITEMS: MenuProps["items"] = [
   },
 ];
 
-// 세 그룹은 항상 펼친 상태로 두어 와이어프레임처럼 2단계가 보이게 한다.
-const DEFAULT_OPEN_KEYS = [GROUP_OPERATIONS, GROUP_POLICY, GROUP_SYSTEM];
-
 // 최상위 경로 세그먼트로 선택 리프 메뉴를 계산한다. (상세 화면에서도 부모 리프 유지)
 function selectedKey(pathname: string): string {
   if (pathname.startsWith("/users")) return "/users";
@@ -60,10 +58,30 @@ function selectedKey(pathname: string): string {
   return "/";
 }
 
+// 리프 경로가 속한 그룹 키. (기본은 접힘 — 현재 위치한 그룹만 펼쳐 선택 항목이 보이게 한다.)
+function groupForPath(pathname: string): string | null {
+  if (pathname.startsWith("/users") || pathname.startsWith("/rooms")) return GROUP_OPERATIONS;
+  if (pathname.startsWith("/agreements")) return GROUP_POLICY;
+  if (pathname.startsWith("/admins")) return GROUP_SYSTEM;
+  return null;
+}
+
 export function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { admin, logout } = useAuth();
+
+  // 기본은 접힘. 현재 위치의 그룹만 펼쳐 선택 항목이 보이게 하고, 이후엔 사용자가 자유롭게 토글.
+  const [openKeys, setOpenKeys] = useState<string[]>(() => {
+    const group = groupForPath(location.pathname);
+    return group ? [group] : [];
+  });
+
+  // 다른 그룹의 페이지로 이동하면 그 그룹을 펼친다(이미 열려 있으면 유지, 나머지는 건드리지 않음).
+  useEffect(() => {
+    const group = groupForPath(location.pathname);
+    if (group) setOpenKeys((prev) => (prev.includes(group) ? prev : [...prev, group]));
+  }, [location.pathname]);
 
   const userMenu: MenuProps["items"] = [
     {
@@ -99,7 +117,8 @@ export function AdminLayout() {
         <Menu
           mode="inline"
           selectedKeys={[selectedKey(location.pathname)]}
-          defaultOpenKeys={DEFAULT_OPEN_KEYS}
+          openKeys={openKeys}
+          onOpenChange={(keys) => setOpenKeys(keys as string[])}
           items={NAV_ITEMS}
           style={{ borderInlineEnd: "none" }}
           onClick={({ key }) => {

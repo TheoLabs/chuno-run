@@ -46,7 +46,7 @@ export class GeneralUserService extends DddService {
     // NOTE: 필수 이용약관 동의 검증
     const requiredAgreements = await this.agreementRepository.find({
       statuses: [AgreementStatus.ACTIVE],
-      required: true,
+      required: [true],
     });
     const agreedIds = new Set(consents.filter((c) => c.isAgreed).map((c) => c.agreementId));
     const missingRequired = requiredAgreements.filter((agreement) => !agreedIds.has(agreement.id));

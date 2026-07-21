@@ -32,3 +32,6 @@ abstract class BaseAgreementResponseDto extends ResponseDto {
 
 @Exclude()
 export class GeneralAgreementResponseDto extends BaseAgreementResponseDto {}
+
+@Exclude()
+export class AdminAgreementResponseDto extends BaseAgreementResponseDto {}
