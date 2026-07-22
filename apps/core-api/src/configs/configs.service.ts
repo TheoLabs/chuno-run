@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type DataSourceOptions } from 'typeorm';
-import { GoogleConfig, JwtConfig, KafkaConfig } from './configuration';
+import { GoogleConfig, JobConfig, JwtConfig, KafkaConfig } from './configuration';
 import type { RedisOptions } from 'ioredis';
 
 @Injectable()
@@ -34,5 +34,9 @@ export class ConfigsService {
 
   get google() {
     return this.configService.get<GoogleConfig>('google')!;
+  }
+
+  get job() {
+    return this.configService.get<JobConfig>('job')!;
   }
 }

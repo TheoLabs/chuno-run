@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { Agreement, AgreementStatus, AgreementType } from '../domain/agreement.entity';
 import { CalendarDate } from '@types';
 import { checkInValue, checkRangeValue, convertOptions, stripUndefined, TypeormRelationOptions } from '@libs/utils';
+import { LessThanOrEqual } from 'typeorm';
 
 @Injectable()
 export class AgreementRepository extends DddRepository<Agreement> {
@@ -16,6 +17,8 @@ export class AgreementRepository extends DddRepository<Agreement> {
       required?: boolean[];
       statuses?: AgreementStatus[];
       expectedActivatedOn?: CalendarDate;
+      // 시행일 도달분 전부(<= 기준일) — 스케줄러 catch-up용 inclusive 상한.
+      expectedActivatedOnUntil?: CalendarDate;
       minExpectedActivatedOn?: CalendarDate;
       maxExpectedActivatedOn?: CalendarDate;
     },
@@ -30,7 +33,9 @@ export class AgreementRepository extends DddRepository<Agreement> {
         status: checkInValue(conditions.statuses),
         expectedActivatedOn:
           conditions.expectedActivatedOn ??
-          checkRangeValue(conditions.minExpectedActivatedOn, conditions.maxExpectedActivatedOn),
+          (conditions.expectedActivatedOnUntil !== undefined
+            ? LessThanOrEqual(conditions.expectedActivatedOnUntil)
+            : checkRangeValue(conditions.minExpectedActivatedOn, conditions.maxExpectedActivatedOn)),
       }),
       ...convertOptions(options),
     });

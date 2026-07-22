@@ -17,12 +17,18 @@ export interface GoogleConfig {
   clientId: string;
 }
 
+export interface JobConfig {
+  // 외부 스케줄러(EventBridge 등)가 배치 잡을 호출할 때 x-scheduler-token 헤더로 제시하는 시크릿.
+  schedulerToken: string;
+}
+
 interface AppConfig {
   mysql: DataSourceOptions;
   jwt: JwtConfig;
   kafka: KafkaConfig;
   redis: RedisOptions;
   google: GoogleConfig;
+  job: JobConfig;
 }
 
 export default (env: Record<string, any> = process.env): AppConfig => ({
@@ -53,5 +59,8 @@ export default (env: Record<string, any> = process.env): AppConfig => ({
   },
   google: {
     clientId: env.GOOGLE_CLIENT_ID,
+  },
+  job: {
+    schedulerToken: env.SCHEDULER_JOB_TOKEN,
   },
 });

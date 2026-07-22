@@ -16,8 +16,9 @@ export class AdminJobService extends DddService {
   async activateAgreements({ scheduledOn }: { scheduledOn?: CalendarDate }) {
     const day = scheduledOn || today();
 
+    // 시행일이 기준일(day)까지 도달한 pending을 전부 조회한다(<=). 실행 누락일이 있어도 다음 실행에서 catch-up.
     const pendingAgreements = await this.agreementRepository.find({
-      expectedActivatedOn: day,
+      expectedActivatedOnUntil: day,
       statuses: [AgreementStatus.PENDING],
     });
 
