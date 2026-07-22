@@ -4,9 +4,10 @@ import { AgreementModule } from '@modules/agreement/agreement.module';
 import { RoomModule } from './room/room.module';
 import { AuthModule } from '@modules/auth/auth.module';
 import { AdminModule } from './admin/admin.module';
+import { JobModule } from './job/job.module';
 
 @Module({
-  imports: [UserModule, AgreementModule, RoomModule, AuthModule, AdminModule],
-  exports: [UserModule, AgreementModule, RoomModule, AuthModule, AdminModule],
+  imports: [UserModule, AgreementModule, RoomModule, AuthModule, AdminModule, JobModule],
+  exports: [UserModule, AgreementModule, RoomModule, AuthModule, AdminModule, JobModule],
 })
 export class DomainModule {}

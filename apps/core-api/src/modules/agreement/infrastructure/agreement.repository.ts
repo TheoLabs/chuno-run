@@ -2,7 +2,7 @@ import { DddRepository } from '@libs/ddd';
 import { Injectable } from '@nestjs/common';
 import { Agreement, AgreementStatus, AgreementType } from '../domain/agreement.entity';
 import { CalendarDate } from '@types';
-import { checkInValue, convertOptions, stripUndefined, TypeormRelationOptions } from '@libs/utils';
+import { checkInValue, checkRangeValue, convertOptions, stripUndefined, TypeormRelationOptions } from '@libs/utils';
 
 @Injectable()
 export class AgreementRepository extends DddRepository<Agreement> {
@@ -16,6 +16,8 @@ export class AgreementRepository extends DddRepository<Agreement> {
       required?: boolean[];
       statuses?: AgreementStatus[];
       expectedActivatedOn?: CalendarDate;
+      minExpectedActivatedOn?: CalendarDate;
+      maxExpectedActivatedOn?: CalendarDate;
     },
     options?: TypeormRelationOptions<Agreement>
   ) {
@@ -26,7 +28,9 @@ export class AgreementRepository extends DddRepository<Agreement> {
         version: conditions.version,
         required: checkInValue(conditions.required),
         status: checkInValue(conditions.statuses),
-        expectedActivatedOn: conditions.expectedActivatedOn,
+        expectedActivatedOn:
+          conditions.expectedActivatedOn ??
+          checkRangeValue(conditions.minExpectedActivatedOn, conditions.maxExpectedActivatedOn),
       }),
       ...convertOptions(options),
     });
@@ -39,6 +43,8 @@ export class AgreementRepository extends DddRepository<Agreement> {
     required?: boolean[];
     statuses?: AgreementStatus[];
     expectedActivatedOn?: CalendarDate;
+    minExpectedActivatedOn?: CalendarDate;
+    maxExpectedActivatedOn?: CalendarDate;
   }) {
     return this.entityManager.count(this.entityClass, {
       where: stripUndefined({
@@ -47,7 +53,9 @@ export class AgreementRepository extends DddRepository<Agreement> {
         version: conditions.version,
         required: checkInValue(conditions.required),
         status: checkInValue(conditions.statuses),
-        expectedActivatedOn: conditions.expectedActivatedOn,
+        expectedActivatedOn:
+          conditions.expectedActivatedOn ??
+          checkRangeValue(conditions.minExpectedActivatedOn, conditions.maxExpectedActivatedOn),
       }),
     });
   }
