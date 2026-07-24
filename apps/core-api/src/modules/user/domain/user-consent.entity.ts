@@ -44,4 +44,13 @@ export class UserConsent extends DddBaseAggregate {
   static create(args: Ctor) {
     return new UserConsent(args);
   }
+
+  /**
+   * 동의 여부를 갱신하고 처리 시각을 다시 찍는다.
+   * (같은 약관 버전에 대한 마음 바꾸기 — 개정된 새 버전은 agreementId 가 달라 별도 이력이 생긴다.)
+   */
+  change(isAgreed: boolean) {
+    this.isAgreed = isAgreed;
+    this.consentedOn = today('YYYY-MM-DD HH:mm:ss');
+  }
 }

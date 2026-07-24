@@ -87,7 +87,7 @@ class _RoomCreateScreenState extends State<RoomCreateScreen> {
 
     setState(() => _submitting = true);
     try {
-      await _roomApi.create(
+      final roomId = await _roomApi.create(
         accessToken: token,
         title: title,
         goalDistanceMeter: goalDistanceMeter,
@@ -96,8 +96,8 @@ class _RoomCreateScreenState extends State<RoomCreateScreen> {
         capacity: _capacity,
       );
       if (!mounted) return;
-      // 서버 응답에 방 id가 없어 대기실은 아직 목업으로 이동한다.
-      Navigator.of(context).pushReplacementNamed('/waiting-room');
+      // 만든 사람은 방장으로 자동 참가되므로 곧바로 그 방 대기실로 들어간다.
+      Navigator.of(context).pushReplacementNamed('/waiting-room', arguments: roomId);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);

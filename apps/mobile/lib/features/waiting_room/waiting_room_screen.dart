@@ -47,6 +47,12 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
   final Set<int> _kicking = {};
   Timer? _ticker;
 
+  /// 서버 상태를 다시 읽는 주기 — 자동 모집 마감·출발·취소를 감지한다.
+  Timer? _poller;
+
+  /// 자동 전이로 화면을 이미 넘겼는지 — 중복 네비게이션 방지.
+  bool _navigated = false;
+
   /// 로그인 사용자가 방장(hostUserId)과 같은지.
   bool get _isHost {
     final me = AuthService.instance.user?.id;
@@ -62,19 +68,24 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted && _detail != null) setState(() {});
     });
+    // 시작 10분 전 모집 마감·시작 시각 출발·인원 미달 취소는 모두 서버가 자동 전이시킨다(CH-13).
+    // 대기실은 그 결과를 짧은 주기로 확인해 화면을 넘긴다.
+    _poller = Timer.periodic(const Duration(seconds: 3), (_) => _load(silent: true));
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
+    _poller?.cancel();
     super.dispose();
   }
 
-  Future<void> _load() async {
+  /// 방 상세를 다시 읽는다. [silent] 면 로딩 스피너·에러 화면을 띄우지 않는다(주기 폴링용).
+  Future<void> _load({bool silent = false}) async {
     final id = widget.roomId;
     final token = AuthService.instance.accessToken;
     if (id == null || token == null) {
-      if (mounted) {
+      if (mounted && !silent) {
         setState(() {
           _loading = false;
           _failed = true;
@@ -82,7 +93,7 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
       }
       return;
     }
-    if (mounted) {
+    if (mounted && !silent) {
       setState(() {
         _loading = true;
         _failed = false;
@@ -96,13 +107,35 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
         _participants = List.of(detail.participants);
         _loading = false;
       });
+      _handleStatus(detail);
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || silent) return;
       setState(() {
         _loading = false;
         _failed = true;
       });
     }
+  }
+
+  /// 서버가 방을 전이시켰으면 그에 맞는 화면으로 넘긴다.
+  /// - live  → 경주 화면 (전원 동시 출발)
+  /// - cancelled → 자동 취소 안내 (모집 마감 시점에 2명 미만)
+  /// - finished  → 결과 화면 (돌아왔더니 이미 끝난 경우)
+  void _handleStatus(RoomDetail detail) {
+    if (_navigated || !mounted) return;
+
+    final route = switch (detail.status) {
+      'live' => '/race',
+      'cancelled' => '/race-cancelled',
+      'finished' => '/result',
+      _ => null,
+    };
+
+    if (route == null) return;
+
+    _navigated = true;
+    _poller?.cancel();
+    Navigator.of(context).pushReplacementNamed(route, arguments: detail.id);
   }
 
   Future<void> _confirmKick(RoomParticipant pl) async {
@@ -201,13 +234,11 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
         const SizedBox(height: AppDimens.md),
         _playerGrid(context, detail),
         const SizedBox(height: AppDimens.xl),
-        // 방장: 경주 시작 / 비방장 참가자: 방 나가기.
-        if (_isHost)
-          FilledButton(
-            onPressed: () => Navigator.of(context).pushReplacementNamed('/race'),
-            child: const Text('경주 시작'),
-          )
-        else
+        // 출발은 서버가 시작 시각에 전원을 동시에 내보낸다(수동 시작 없음).
+        // 방장은 방 취소를, 참가자는 방 나가기를 할 수 있다.
+        _autoStartNotice(context, detail),
+        const SizedBox(height: AppDimens.md),
+        if (!_isHost)
           OutlinedButton(
             onPressed: _exiting ? null : _confirmExit,
             style: OutlinedButton.styleFrom(
@@ -217,6 +248,40 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
             child: const Text('방 나가기'),
           ),
       ],
+    );
+  }
+
+  /// 자동 진행 안내 — 지금 방이 어느 단계인지, 다음에 무슨 일이 일어나는지 알려준다.
+  Widget _autoStartNotice(BuildContext context, RoomDetail detail) {
+    final p = context.palette;
+    final isReady = detail.status == 'ready';
+
+    final message = isReady
+        ? '모집이 마감됐어요. 시작 시각이 되면 참가자 전원이 동시에 출발합니다. 앱을 켜둔 채로 기다려 주세요.'
+        : '시작 10분 전에 모집이 자동 마감되고, 그때 참가자가 2명 미만이면 경주가 취소돼요.';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppDimens.lg),
+      decoration: BoxDecoration(
+        color: p.surfaceHigh,
+        borderRadius: BorderRadius.circular(AppDimens.radius),
+        border: Border.all(color: isReady ? p.success.withValues(alpha: 0.5) : p.outline),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isReady ? Icons.flag_outlined : Icons.info_outline,
+            size: 18,
+            color: isReady ? p.success : p.muted,
+          ),
+          const SizedBox(width: AppDimens.sm),
+          Expanded(
+            child: Text(message, style: context.text.bodyMedium?.copyWith(color: p.muted)),
+          ),
+        ],
+      ),
     );
   }
 

@@ -8,6 +8,7 @@ import { UserListPage } from "./pages/UserListPage";
 import { UserDetailPage } from "./pages/UserDetailPage";
 import { RoomListPage } from "./pages/RoomListPage";
 import { RoomDetailPage } from "./pages/RoomDetailPage";
+import { CheatDetectionPage } from "./pages/CheatDetectionPage";
 import { AgreementPage } from "./pages/AgreementPage";
 import { AdminAccountsPage } from "./pages/AdminAccountsPage";
 import { AuthProvider } from "./auth/AuthContext";
@@ -35,6 +36,7 @@ const router = createBrowserRouter([
       { path: "users/:id", element: <UserDetailPage /> },
       { path: "rooms", element: <RoomListPage /> },
       { path: "rooms/:id", element: <RoomDetailPage /> },
+      { path: "cheat-detections", element: <CheatDetectionPage /> },
       { path: "agreements", element: <AgreementPage /> },
       { path: "admins", element: <AdminAccountsPage /> },
     ],

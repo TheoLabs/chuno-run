@@ -1,4 +1,5 @@
 import '../api/api_client.dart';
+import 'token_store.dart';
 
 /// 사용자 계정 상태 — core-api User.status 도메인과 동일.
 enum UserStatus { onboarding, active, suspended, exited }
@@ -81,6 +82,9 @@ abstract class AuthApi {
   /// 현재 토큰의 사용자 정보(GET /auth/me).
   Future<AuthUser> me({required String accessToken});
 
+  /// [2차] 계정 탈퇴 (POST /users/me/withdrawal). 서버 응답은 비어 있다.
+  Future<void> withdraw({required String accessToken});
+
   /// 닉네임 수정 (PUT /users/me). 서버 응답은 비어 있으므로 반환값이 없다.
   Future<void> changeNickname({
     required String accessToken,
@@ -151,14 +155,23 @@ class HttpAuthApi implements AuthApi {
     // 부분 수정 — 바뀐 필드(nickname)만 담아 보낸다. 빈 값은 호출부에서 이미 걸러진다.
     await _client.put('/users/me', token: accessToken, body: {'nickname': nickname});
   }
+
+  @override
+  Future<void> withdraw({required String accessToken}) async {
+    await _client.post('/users/me/withdrawal', token: accessToken);
+  }
 }
 
 /// 앱 인증 세션. 액세스 토큰과 현재 사용자 상태를 보관하고, 화면 분기에 쓴다.
 ///
 /// 아직 실제 소셜 로그인이 없어 core-api의 임시 dev 로그인에 붙는다.
 class AuthService {
-  AuthService({AuthApi? api}) : _api = api ?? HttpAuthApi();
+  AuthService({AuthApi? api, TokenStore? tokenStore})
+      : _api = api ?? HttpAuthApi(),
+        _tokenStore = tokenStore ?? TokenStore.instance;
+
   final AuthApi _api;
+  final TokenStore _tokenStore;
 
   /// 전역 세션. 테스트에서는 가짜 AuthApi를 주입한 인스턴스로 교체한다.
   static AuthService instance = AuthService();
@@ -175,7 +188,35 @@ class AuthService {
     final result = await _api.devLogin(provider: provider);
     accessToken = result.accessToken;
     user = result.user;
+    // 앱을 다시 켰을 때 로그인 화면을 건너뛰도록 토큰을 보관한다.
+    await _tokenStore.write(result.accessToken);
     return result.user.status;
+  }
+
+  /// 저장된 토큰으로 세션을 복구한다 (자동 로그인).
+  ///
+  /// 토큰이 없거나 만료·폐기됐으면 보관분을 지우고 null 을 돌려준다 — 호출부는 로그인 화면으로 보낸다.
+  /// 성공하면 사용자 상태를 돌려주므로 진입 화면(온보딩/홈/정지 안내)을 그대로 분기할 수 있다.
+  Future<UserStatus?> restore() async {
+    final stored = await _tokenStore.read();
+
+    if (stored == null || stored.isEmpty) {
+      return null;
+    }
+
+    accessToken = stored;
+
+    try {
+      final fetched = await _api.me(accessToken: stored);
+      user = fetched;
+      return fetched.status;
+    } catch (_) {
+      // 만료·폐기된 토큰 — 세션을 비우고 다시 로그인시킨다.
+      accessToken = null;
+      user = null;
+      await _tokenStore.clear();
+      return null;
+    }
   }
 
   /// 온보딩 완료 — 로그인 토큰으로 닉네임·약관 동의를 저장한다.
@@ -224,9 +265,21 @@ class AuthService {
     return true;
   }
 
+  /// [2차] 계정 탈퇴 — 서버에 탈퇴를 요청한 뒤 세션을 비운다.
+  /// 서버가 status=exited 전이·기기 해지를 처리하므로, 이후 앱은 로그인 화면으로 나간다.
+  Future<void> withdraw() async {
+    final token = accessToken;
+    if (token == null) {
+      throw StateError('로그인 후에 탈퇴할 수 있습니다.');
+    }
+    await _api.withdraw(accessToken: token);
+    await logout();
+  }
+
   /// 로그아웃 — 세션(토큰)만 비운다. 서버의 계정 상태는 유지된다.
-  void logout() {
+  Future<void> logout() async {
     accessToken = null;
     user = null;
+    await _tokenStore.clear();
   }
 }

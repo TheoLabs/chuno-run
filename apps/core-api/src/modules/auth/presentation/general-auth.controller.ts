@@ -3,7 +3,7 @@ import { UserGuard } from '@guards';
 import { User } from '@modules/user/domain/user.entity';
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { CompleteOnboardingInput, DevLoginInput, GeneralAuthService } from '../applications/general-auth.service';
-import { MeDto } from './dto';
+import { GeneralSocialLoginDto, MeDto } from './dto';
 
 @Controller('auth')
 export class GeneralAuthController {
@@ -11,6 +11,23 @@ export class GeneralAuthController {
     private readonly generalAuthService: GeneralAuthService,
     private readonly context: Context
   ) {}
+
+  /**
+   * 소셜 로그인 — 앱이 카카오/구글/애플 SDK 로 받은 토큰을 서버가 검증하고 계정을 찾거나 만든다.
+   * 첫 로그인이면 status=onboarding 으로 생성되고, 재로그인이면 기존 계정이 매칭된다.
+   *
+   * @example POST /auth/login { "provider": "kakao", "token": "<제공자 토큰>" }
+   */
+  @Post('login')
+  async login(@Body() body: GeneralSocialLoginDto) {
+    // 1. Destructure body, params, query
+    // 2. Get context
+    // 3. Get result
+    const data = await this.generalAuthService.login(body);
+
+    // 4. Send response
+    return { data };
+  }
 
   /**
    * [로컬 개발 전용] 임시 로그인.

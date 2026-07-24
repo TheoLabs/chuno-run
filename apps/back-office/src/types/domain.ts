@@ -1,5 +1,5 @@
-// 백오피스 목(mock) 데이터 타입 정의.
-// 실제 API 연동 전 UI/UX 검증용이며, core-api 응답 형태를 참고해 최소한으로 정의한다.
+// 백오피스가 다루는 도메인 타입. core-api 응답의 열거형(상태·제공자 등)과 1:1로 맞춘다.
+// 화면·API 계층이 공유하며, 서버 enum 이 바뀌면 여기부터 고친다.
 
 export type UserStatus = "active" | "suspended" | "onboarding" | "exited";
 export type Provider = "kakao" | "google" | "apple";

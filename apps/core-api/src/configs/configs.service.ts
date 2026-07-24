@@ -1,7 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type DataSourceOptions } from 'typeorm';
-import { GoogleConfig, JobConfig, JwtConfig, KafkaConfig } from './configuration';
+import {
+  FirebaseConfig,
+  GoogleConfig,
+  JobConfig,
+  JwtConfig,
+  KafkaConfig,
+  OauthConfig,
+  RevalidationConfig,
+} from './configuration';
 import type { RedisOptions } from 'ioredis';
 
 @Injectable()
@@ -34,6 +42,21 @@ export class ConfigsService {
 
   get google() {
     return this.configService.get<GoogleConfig>('google')!;
+  }
+
+  /** 앱 소셜 로그인(카카오/구글/애플) 검증 설정. */
+  get oauth() {
+    return this.configService.get<OauthConfig>('oauth')!;
+  }
+
+  /** FCM 푸시 발송 설정. */
+  get firebase() {
+    return this.configService.get<FirebaseConfig>('firebase')!;
+  }
+
+  /** 서버 정합성 재검증 임계값. */
+  get revalidation() {
+    return this.configService.get<RevalidationConfig>('revalidation')!;
   }
 
   get job() {

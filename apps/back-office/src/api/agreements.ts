@@ -2,7 +2,7 @@
 // 지금은 목록 조회(list)만 실연동한다. 등록/활성화/수정은 화면에서 로컬 state 로 처리.
 
 import { apiRequest } from "./client";
-import type { Agreement, AgreementStatus, AgreementType } from "../mock/types";
+import type { Agreement, AgreementStatus, AgreementType } from "../types/domain";
 
 /**
  * 서버 응답의 약관 항목. (GET /admins/agreements → { items, total })

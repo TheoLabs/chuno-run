@@ -188,8 +188,9 @@ abstract class RoomApi {
   ///
   /// [startOn]은 서버 형식 'YYYY-MM-DD HH:mm:ss'(KST). 서버가 미래 시각·정원≥2·
   /// 진행중 방 1개 제한 등을 검증하므로 위반 시 [ApiException]을 던진다.
-  /// (현재 서버 응답에 생성된 방 id가 없어 반환값은 없다.)
-  Future<void> create({
+  ///
+  /// 생성된 방의 id를 돌려준다 — 만든 사람을 곧바로 그 방 대기실로 보내기 위해서다.
+  Future<int> create({
     required String accessToken,
     required String title,
     required int goalDistanceMeter,
@@ -268,7 +269,7 @@ class HttpRoomApi implements RoomApi {
   }
 
   @override
-  Future<void> create({
+  Future<int> create({
     required String accessToken,
     required String title,
     required int goalDistanceMeter,
@@ -276,13 +277,15 @@ class HttpRoomApi implements RoomApi {
     required String startOn,
     required int capacity,
   }) async {
-    await _client.post('/rooms', token: accessToken, body: {
+    final json = await _client.post('/rooms', token: accessToken, body: {
       'title': title,
       'goalDistanceMeter': goalDistanceMeter,
       'goalLimitMinutes': goalLimitMinutes,
       'startOn': startOn,
       'capacity': capacity,
     });
+    final data = json['data'] as Map<String, dynamic>;
+    return (data['id'] as num).toInt();
   }
 
   @override

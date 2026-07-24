@@ -40,10 +40,40 @@ class Agreement {
       );
 }
 
+/// 재동의가 필요한 약관 묶음 — GET /users/me/consents/pending 의 `data`.
+class PendingConsents {
+  const PendingConsents({required this.items, required this.hasRequired});
+
+  /// 시행 중이지만 아직 동의하지 않은 약관들(개정된 새 버전 포함).
+  final List<Agreement> items;
+
+  /// 필수 약관이 포함되어 있으면 true — 동의 전에는 서비스 이용을 막아야 한다.
+  final bool hasRequired;
+
+  bool get isEmpty => items.isEmpty;
+
+  factory PendingConsents.fromJson(Map<String, dynamic> json) => PendingConsents(
+        items: (json['items'] as List<dynamic>? ?? const [])
+            .map((e) => Agreement.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        hasRequired: (json['hasRequired'] as bool?) ?? false,
+      );
+}
+
 /// 약관 API 추상화 — 테스트에서 가짜 구현으로 교체할 수 있다.
 abstract class AgreementApi {
   /// 활성(active) 약관 목록을 반환한다.
   Future<List<Agreement>> activeAgreements({required String accessToken});
+
+  /// 재동의가 필요한 약관을 반환한다 (GET /users/me/consents/pending).
+  Future<PendingConsents> pendingConsents({required String accessToken});
+
+  /// 약관 재동의를 저장한다 (POST /users/me/consents).
+  /// 시행 중인 필수 약관에 하나라도 동의하지 않으면 서버가 400을 돌려준다.
+  Future<void> consent({
+    required String accessToken,
+    required List<({int agreementId, bool isAgreed})> consents,
+  });
 }
 
 /// core-api 약관 API 구현 (GET /agreements).
@@ -62,5 +92,23 @@ class HttpAgreementApi implements AgreementApi {
         .where((a) => a.isActive)
         .toList();
     return items;
+  }
+
+  @override
+  Future<PendingConsents> pendingConsents({required String accessToken}) async {
+    final json = await _client.get('/users/me/consents/pending', token: accessToken);
+    return PendingConsents.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<void> consent({
+    required String accessToken,
+    required List<({int agreementId, bool isAgreed})> consents,
+  }) async {
+    await _client.post('/users/me/consents', token: accessToken, body: {
+      'consents': consents
+          .map((c) => {'agreementId': c.agreementId, 'isAgreed': c.isAgreed})
+          .toList(),
+    });
   }
 }

@@ -5,7 +5,7 @@ import type {
   Provider,
   RoomStatus,
   UserStatus,
-} from "./mock/types";
+} from "./types/domain";
 
 export const PROVIDER_LABEL: Record<Provider, string> = {
   kakao: "카카오",
@@ -45,4 +45,17 @@ export const AGREEMENT_STATUS_LABEL: Record<AgreementStatus, string> = {
 export const ADMIN_STATUS_LABEL: Record<string, string> = {
   active: "활성",
   disabled: "비활성",
+};
+
+// 부정행위 탐지 유형·조치 (2차).
+export const CHEAT_TYPE_LABEL: Record<string, string> = {
+  abnormalSpeed: "비정상 속도",
+  spoofSuspected: "위치 조작 의심",
+  timestampMismatch: "시각 불일치",
+  impossibleFinish: "불가능한 완주",
+};
+
+export const CHEAT_ACTION_LABEL: Record<string, string> = {
+  rejected: "보고 반려",
+  voided: "기록 무효",
 };

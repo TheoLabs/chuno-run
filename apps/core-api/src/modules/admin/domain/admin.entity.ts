@@ -9,6 +9,8 @@ export enum AdminStatus {
 
 type Ctor = {
   email: string;
+  /** 표시 이름. 생략하면 첫 구글 로그인 때 구글 계정 이름으로 채워진다. */
+  name?: string;
 };
 
 @Entity()
@@ -33,6 +35,7 @@ export class Admin extends DddAggregate {
 
     if (args) {
       this.email = args.email;
+      this.name = args.name?.trim() || null;
       // 사전 등록(allowlist)된 관리자는 추가 즉시 로그인 가능하도록 ACTIVE 로 둔다.
       this.status = AdminStatus.ACTIVE;
     }
@@ -40,6 +43,24 @@ export class Admin extends DddAggregate {
 
   static of(args: Ctor) {
     return new Admin(args);
+  }
+
+  /** 계정 비활성화 — 이후 구글 로그인이 거부된다. 자기 자신 비활성화 방지는 서비스에서 막는다. */
+  disable() {
+    if (this.status === AdminStatus.DISABLED) {
+      return;
+    }
+
+    this.status = AdminStatus.DISABLED;
+  }
+
+  /** 비활성화된 계정을 다시 활성화한다. */
+  activate() {
+    if (this.status === AdminStatus.ACTIVE) {
+      return;
+    }
+
+    this.status = AdminStatus.ACTIVE;
   }
 
   signInWithGoogle(identity: { sub?: string; name?: string }) {

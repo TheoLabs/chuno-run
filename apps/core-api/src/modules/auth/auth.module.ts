@@ -5,11 +5,13 @@ import { GeneralAuthService } from './applications/general-auth.service';
 import { AdminAuthController } from './presentation/admin-auth.controller';
 import { AdminAuthService } from './applications/admin-auth.service';
 import { GoogleModule } from '@libs/google';
+import { OauthVerifierService } from './applications/oauth-verifier.service';
+import { UserModule } from '@modules/user/user.module';
 
 @Module({
-  imports: [AdminModule, GoogleModule],
+  imports: [AdminModule, GoogleModule, UserModule],
   controllers: [GeneralAuthController, AdminAuthController],
-  providers: [GeneralAuthService, AdminAuthService],
+  providers: [GeneralAuthService, AdminAuthService, OauthVerifierService],
   exports: [GeneralAuthService, AdminAuthService],
 })
 export class AuthModule {}

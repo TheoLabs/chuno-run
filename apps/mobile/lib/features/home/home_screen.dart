@@ -186,61 +186,6 @@ class _HomeScreenState extends State<HomeScreen> {
         return statusOk && distOk && timeOk;
       }).toList();
 
-  void _openInvite() {
-    final controller = TextEditingController();
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: AppDimens.screenPad,
-          right: AppDimens.screenPad,
-          top: AppDimens.xl,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + AppDimens.xl,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('초대 코드로 참가', style: context.text.titleLarge),
-            const SizedBox(height: AppDimens.xs),
-            Text('방장에게 받은 6자리 코드를 입력하세요',
-                style: context.text.bodyMedium?.copyWith(color: context.palette.muted)),
-            const SizedBox(height: AppDimens.lg),
-            TextField(
-              controller: controller,
-              textAlign: TextAlign.center,
-              textCapitalization: TextCapitalization.characters,
-              style: context.text.titleLarge?.copyWith(letterSpacing: 4),
-              decoration: const InputDecoration(hintText: 'RUN421'),
-            ),
-            const SizedBox(height: AppDimens.lg),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('취소'),
-                  ),
-                ),
-                const SizedBox(width: AppDimens.sm),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      Navigator.of(context).pushNamed('/waiting-room');
-                    },
-                    child: const Text('입장하기'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final visible = _visible;
@@ -333,7 +278,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     _RoomCard(
                       room: room,
                       onAction: () => room.status == RoomStatus.live
-                          ? Navigator.of(context).pushNamed('/race')
+                          ? Navigator.of(context)
+                              .pushNamed('/race', arguments: room.id)
                           : _joinAndEnter(room),
                       onEnter: () => _enterRoom(room),
                     ),
@@ -341,11 +287,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
               ],
             ),
-          ),
-          Positioned(
-            left: AppDimens.screenPad,
-            bottom: 20,
-            child: _InviteButton(onTap: _openInvite),
           ),
         ],
       ),
@@ -696,37 +637,3 @@ class _JoinedBadge extends StatelessWidget {
   }
 }
 
-class _InviteButton extends StatelessWidget {
-  const _InviteButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).cardColor,
-      elevation: 3,
-      shadowColor: Colors.black.withValues(alpha: 0.3),
-      borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: AppDimens.lg, vertical: AppDimens.md),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-            border: Border.all(color: context.palette.outline),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.vpn_key_outlined, size: 18, color: context.scheme.onSurface),
-              const SizedBox(width: 6),
-              Text('초대 코드', style: context.text.labelLarge),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

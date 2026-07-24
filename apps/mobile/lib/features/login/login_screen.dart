@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/auth/auth_service.dart';
+import '../../core/device/device_registrar.dart';
+import '../../core/location/location_service.dart';
 import '../../design_system/app_dimens.dart';
 import '../../design_system/app_palette.dart';
 
@@ -23,6 +25,20 @@ class _LoginScreenState extends State<LoginScreen> {
       // (약관·개인정보 동의는 로그인이 아니라 온보딩에서 받는다.)
       final status = await AuthService.instance.login(provider);
       if (!mounted) return;
+
+      // 이 기기를 서버에 등록한다(멀티기기·푸시). 실패해도 로그인은 계속된다.
+      await DeviceRegistrar.instance.registerAfterLogin();
+      if (!mounted) return;
+
+      // 위치는 서비스의 전제라 로그인 직후 한 번 확보한다. 거부되면 안내 화면에서 막는다(CH-18).
+      final access = await LocationService.instance.request();
+      if (!mounted) return;
+
+      if (access != LocationAccess.granted) {
+        Navigator.of(context).pushReplacementNamed('/location-denied', arguments: access);
+        return;
+      }
+
       final route = status == UserStatus.active ? '/main' : '/onboarding';
       Navigator.of(context).pushReplacementNamed(route);
     } catch (e) {

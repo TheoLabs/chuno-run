@@ -8,6 +8,22 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!-- 실기기에서 같은 네트워크의 개발 서버(core-api)에 붙으려면 iOS 14+ 로컬 네트워크 권한이 필요하다.
+	     이 설명이 없으면 권한 시트가 뜨지 않고 연결이 조용히 실패한다. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>같은 네트워크에 있는 추노 개발 서버에 연결해 경주 데이터를 주고받습니다.</string>
+	<!-- 위치 권한 — 추노는 GPS 로 거리를 재는 서비스라 위치가 필수다.
+	     경주 중에는 화면이 꺼져도 추적이 이어져야 해서 '항상 허용'과 백그라운드 모드를 함께 요청한다. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>러닝 거리를 측정하고 실시간 순위를 겨루기 위해 위치 정보를 사용합니다.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>화면이 꺼져 있거나 앱이 백그라운드일 때도 러닝 거리가 끊기지 않도록 위치 정보를 사용합니다.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>화면이 꺼져 있거나 앱이 백그라운드일 때도 러닝 거리가 끊기지 않도록 위치 정보를 사용합니다.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

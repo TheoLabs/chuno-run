@@ -31,7 +31,7 @@ import {
 } from "../api/agreements";
 import type { UpdateAgreementInput } from "../api/agreements";
 import { ApiError } from "../api/client";
-import type { Agreement, AgreementType } from "../mock/types";
+import type { Agreement, AgreementType } from "../types/domain";
 
 const { Title, Text, Paragraph } = Typography;
 

@@ -1,5 +1,10 @@
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  exclude:
+    # 빌드 산출물(플러그인 소스·자체 테스트 포함)은 분석 대상이 아니다.
+    - build/**
+
 linter:
   rules:
     # UI 코드에서 노이즈가 큰 const 스타일 린트는 비활성화한다.

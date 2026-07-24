@@ -32,5 +32,39 @@ export function toEpochMs(date: CalendarDate): number {
   return dayjs.tz(date).valueOf();
 }
 
+/** 절대시각 epoch millis를 KST 기준 `CalendarDate`로 되돌린다. ({@link toEpochMs}의 역함수) */
+export function fromEpochMs(
+  ms: number,
+  format: 'YYYY-MM-DD' | 'YYYY-MM-DD HH:mm:ss' = 'YYYY-MM-DD HH:mm:ss'
+): CalendarDate {
+  return dayjs(ms).tz().format(format) as CalendarDate;
+}
+
+/**
+ * KST 기준으로 분 단위만큼 이동한 시각을 돌려준다. 음수를 넘기면 과거로 간다.
+ * (모집 마감 = 시작 -10분, 종료 = 시작 +제한시간 처럼 분 단위 파생 시각 계산에 쓴다.)
+ */
+export function addMinutes(
+  date: CalendarDate,
+  minutes: number,
+  format: 'YYYY-MM-DD' | 'YYYY-MM-DD HH:mm:ss' = 'YYYY-MM-DD HH:mm:ss'
+): CalendarDate {
+  return dayjs.tz(date).add(minutes, 'minute').format(format) as CalendarDate;
+}
+
+/** 두 시각의 차이를 초로 돌려준다 (a - b). 경과 시간·페이스 계산용. */
+export function diffSeconds(a: CalendarDate, b: CalendarDate): number {
+  return Math.round((toEpochMs(a) - toEpochMs(b)) / 1000);
+}
+
+/** KST 기준으로 일(day) 단위 이동한 시각. 유예 기간·만료일 계산용. */
+export function addDays(
+  date: CalendarDate,
+  days: number,
+  format: 'YYYY-MM-DD' | 'YYYY-MM-DD HH:mm:ss' = 'YYYY-MM-DD HH:mm:ss'
+): CalendarDate {
+  return dayjs.tz(date).add(days, 'day').format(format) as CalendarDate;
+}
+
 export { dayjs };
 export default dayjs;

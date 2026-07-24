@@ -11,6 +11,7 @@ import {
   SettingOutlined,
   DownOutlined,
   LogoutOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -33,6 +34,7 @@ const NAV_ITEMS: MenuProps["items"] = [
     children: [
       { key: "/users", icon: <UserOutlined />, label: "사용자 관리" },
       { key: "/rooms", icon: <FlagOutlined />, label: "방(경주) 관리" },
+      { key: "/cheat-detections", icon: <WarningOutlined />, label: "부정행위 탐지" },
     ],
   },
   {
@@ -53,6 +55,7 @@ const NAV_ITEMS: MenuProps["items"] = [
 function selectedKey(pathname: string): string {
   if (pathname.startsWith("/users")) return "/users";
   if (pathname.startsWith("/rooms")) return "/rooms";
+  if (pathname.startsWith("/cheat-detections")) return "/cheat-detections";
   if (pathname.startsWith("/agreements")) return "/agreements";
   if (pathname.startsWith("/admins")) return "/admins";
   return "/";
@@ -60,7 +63,8 @@ function selectedKey(pathname: string): string {
 
 // 리프 경로가 속한 그룹 키. (기본은 접힘 — 현재 위치한 그룹만 펼쳐 선택 항목이 보이게 한다.)
 function groupForPath(pathname: string): string | null {
-  if (pathname.startsWith("/users") || pathname.startsWith("/rooms")) return GROUP_OPERATIONS;
+  if (pathname.startsWith("/users") || pathname.startsWith("/rooms") || pathname.startsWith("/cheat-detections"))
+    return GROUP_OPERATIONS;
   if (pathname.startsWith("/agreements")) return GROUP_POLICY;
   if (pathname.startsWith("/admins")) return GROUP_SYSTEM;
   return null;

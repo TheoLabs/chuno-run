@@ -5,6 +5,7 @@ import 'package:mobile/core/api/api_client.dart';
 import 'package:mobile/core/api/room_api.dart';
 import 'package:mobile/core/api/user_stats_api.dart';
 import 'package:mobile/core/auth/auth_service.dart';
+import 'package:mobile/core/auth/token_store.dart';
 import 'package:mobile/core/config/room_limits.dart';
 import 'package:mobile/design_system/app_theme.dart';
 import 'package:mobile/features/room_create/room_create_screen.dart';
@@ -71,6 +72,11 @@ class _FakeAuthApi implements AuthApi {
   }
 
   @override
+  Future<void> withdraw({required String accessToken}) async {
+    // POST /users/me/withdrawal — 탈퇴 요청. 테스트에서는 no-op.
+  }
+
+  @override
   Future<void> changeNickname({
     required String accessToken,
     required String nickname,
@@ -129,7 +135,7 @@ class _FakeRoomApi implements RoomApi {
   Future<List<RoomListItem>> list({required String accessToken}) async => const [];
 
   @override
-  Future<void> create({
+  Future<int> create({
     required String accessToken,
     required String title,
     required int goalDistanceMeter,
@@ -140,6 +146,7 @@ class _FakeRoomApi implements RoomApi {
     createCallCount++;
     lastCreatedGoalDistanceMeter = goalDistanceMeter;
     lastCreatedGoalLimitMinutes = goalLimitMinutes;
+    return 1;
   }
 
   @override
@@ -195,12 +202,41 @@ class _FakeUserStatsApi implements UserStatsApi {
 }
 
 void main() {
-  testWidgets('앱이 로그인 화면으로 시작한다 (카카오·구글·애플)', (WidgetTester tester) async {
+  testWidgets('저장된 세션이 없으면 스플래시가 로그인 화면으로 보낸다', (WidgetTester tester) async {
+    final prevAuth = AuthService.instance;
+    addTearDown(() => AuthService.instance = prevAuth);
+    // 보관된 토큰이 없는 상태 → 자동 로그인 실패 → 로그인 화면.
+    AuthService.instance = AuthService(api: _FakeAuthApi(), tokenStore: InMemoryTokenStore());
+
     await tester.pumpWidget(const ChunoApp());
+    await tester.pumpAndSettle();
+
     expect(find.text('추노'), findsWidgets);
     expect(find.text('카카오로 시작하기'), findsOneWidget);
     expect(find.text('구글로 시작하기'), findsOneWidget);
     expect(find.text('Apple로 시작하기'), findsOneWidget);
+  });
+
+  test('자동 로그인 — 로그인으로 저장된 토큰을 다음 실행에서 복구한다', () async {
+    final api = _FakeAuthApi();
+    final store = InMemoryTokenStore();
+
+    // 1회차 실행: 로그인 → 온보딩 완료(active) → 토큰이 보관된다.
+    final first = AuthService(api: api, tokenStore: store);
+    await first.login('kakao');
+    await first.completeOnboarding('러너킴', const [Consent(agreementId: 1, isAgreed: true)]);
+
+    // 2회차 실행: 앱을 새로 켠 상황. 로그인 화면 없이 세션이 살아나야 한다.
+    final relaunched = AuthService(api: api, tokenStore: store);
+    final status = await relaunched.restore();
+
+    expect(status, UserStatus.active);
+    expect(relaunched.accessToken, isNotNull);
+    expect(relaunched.user?.nickname, '러너킴');
+
+    // 로그아웃하면 보관분도 지워져 다음 실행은 다시 로그인부터다.
+    await relaunched.logout();
+    expect(await AuthService(api: api, tokenStore: store).restore(), isNull);
   });
 
   testWidgets('메인 셸 탭 전환이 시맨틱스 오류 없이 동작한다', (WidgetTester tester) async {
@@ -344,7 +380,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('대기실 하단 액션 — 방장은 경주 시작, 비방장은 방 나가기', (WidgetTester tester) async {
+  testWidgets('대기실 하단 액션 — 출발은 서버 자동 전이, 비방장은 방 나가기', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -366,9 +402,14 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
+    // 하단 액션은 스크롤해야 보이는 위치라 목록 끝까지 내린다.
+    await tester.drag(find.byType(ListView), const Offset(0, -600));
+    await tester.pump();
+
     expect(tester.takeException(), isNull);
     expect(find.text('방 나가기'), findsOneWidget); // 비방장 참가자
-    expect(find.text('경주 시작'), findsNothing); // 참가자에겐 숨김
+    // 수동 시작 버튼은 없다 — 시작 시각이 되면 서버가 전원을 동시에 출발시킨다.
+    expect(find.text('경주 시작'), findsNothing);
 
     await tester.pumpWidget(const SizedBox());
   });

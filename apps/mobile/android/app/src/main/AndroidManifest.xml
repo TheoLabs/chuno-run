@@ -1,6 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 로컬 개발 중 core-api(http)에 붙기 위한 설정 -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- 위치 권한 — 러닝 거리 측정의 전제. 정밀 위치가 필요하다. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <!-- 경주 중 화면이 꺼져도 추적이 끊기지 않도록 포그라운드 서비스로 승격한다. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+
     <application
         android:label="mobile"
         android:name="${applicationName}"
